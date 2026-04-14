@@ -1,0 +1,45 @@
+{
+  "installer_version": "0.1.0",
+  "python": {
+    "package_name": "scibudy",
+    "version": "0.1.0",
+    "requirement": "scibudy==0.1.0"
+  },
+  "frontend": {
+    "source_dir": "web",
+    "dist_dir": "web/dist"
+  },
+  "install_profiles": {
+    "base": {
+      "codex": true,
+      "doctor": true,
+      "sync_ui": true
+    },
+    "analysis": {
+      "codex": true,
+      "doctor": true,
+      "sync_ui": true
+    },
+    "gpu-local": {
+      "codex": true,
+      "doctor": true,
+      "sync_ui": true,
+      "install_local_models": true,
+      "warm_local_models": true
+    },
+    "full": {
+      "codex": true,
+      "doctor": true,
+      "sync_ui": true,
+      "install_local_models": true,
+      "warm_local_models": true
+    }
+  },
+  "local_model_profile": {
+    "name": "qwen4b",
+    "embedding_model": "Qwen/Qwen3-Embedding-4B",
+    "reranker_model": "Qwen/Qwen3-Reranker-4B",
+    "env_name": "research_embed",
+    "embedding_dimension": 2560
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "scibudy-installer",
+  "version": "0.1.0",
+  "description": "Unified installer and bootstrap wrapper for Scibudy",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "scibudy-install": "./bin/scibudy-install.mjs",
+    "scibudy-bootstrap": "./bin/scibudy-install.mjs"
+  },
+  "files": [
+    "bin/",
+    "release-manifest.json",
+    "README.md",
+    "web/dist/"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

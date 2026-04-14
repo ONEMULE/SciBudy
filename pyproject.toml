@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scibudy"
+version = "0.1.0"
+description = "Codex-native scientific research expansion assistant with scholarly search, library management, and local semantic analysis"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "mcp==1.27.0",
+  "httpx==0.28.1",
+  "pydantic>=2.13.0,<3.0.0",
+  "pydantic-settings>=2.13.1,<3.0.0",
+  "python-dotenv>=1.2.2,<2.0.0",
+  "beautifulsoup4>=4.12.3,<5.0.0",
+  "openai>=1.102.0,<2.0.0",
+  "pypdf>=5.9.0,<6.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==8.4.2"]
+
+[project.scripts]
+research-mcp = "research_mcp.cli:mcp_main"
+research-cli = "research_mcp.cli:cli_main"
+scibudy-mcp = "research_mcp.cli:mcp_main"
+scibudy = "research_mcp.cli:cli_main"
+
+[tool.setuptools.packages.find]
+include = ["research_mcp*"]
+
+[tool.setuptools.package-data]
+research_mcp = ["release-manifest.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
