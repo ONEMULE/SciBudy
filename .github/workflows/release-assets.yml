@@ -1,0 +1,46 @@
+name: Release Assets
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  upload-assets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python build tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .[release]
+
+      - name: Build Python artifacts
+        run: python -m build
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix web
+
+      - name: Build frontend
+        run: npm run build --prefix web
+
+      - name: Pack npm installer
+        run: npm pack
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gh release upload "$TAG" dist/* scibudy-installer-*.tgz --repo "$GITHUB_REPOSITORY" --clobber

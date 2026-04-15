@@ -27,6 +27,29 @@ Check:
 npm pack --dry-run
 ```
 
+## Publishing configuration
+
+### PyPI
+
+Supported modes:
+
+- trusted publishing via GitHub OIDC
+- token-based publishing via `PYPI_API_TOKEN`
+
+Repository variable:
+
+- `PYPI_TRUSTED_PUBLISHING_ENABLED=true`
+
+If neither trusted publishing nor `PYPI_API_TOKEN` is configured, the publish workflow skips instead of failing.
+
+### npm
+
+Required secret:
+
+- `NPM_TOKEN`
+
+If `NPM_TOKEN` is missing, the npm publish workflow skips instead of failing.
+
 ## Release intent
 
 Scibudy uses a stable `v0.x` policy. Any breaking change must be called out in the release notes.
