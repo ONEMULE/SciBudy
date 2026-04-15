@@ -1,0 +1,28 @@
+site_name: Scibudy
+site_description: Codex-native scientific research expansion assistant
+repo_url: https://github.com/ONEMULE/scibudy
+theme:
+  name: material
+nav:
+  - English:
+      - Overview: docs/en/index.md
+      - Installation: docs/en/installation.md
+      - Quickstart: docs/en/quickstart.md
+      - CLI and MCP: docs/en/cli-and-mcp.md
+      - Configuration: docs/en/configuration.md
+      - GPU Local: docs/en/gpu-local.md
+      - Library Workflow: docs/en/library-workflow.md
+      - Troubleshooting: docs/en/troubleshooting.md
+      - Development: docs/en/development.md
+      - Releasing: docs/en/releasing.md
+  - 中文:
+      - 概览: docs/zh/index.md
+      - 安装: docs/zh/installation.md
+      - 快速开始: docs/zh/quickstart.md
+      - CLI 与 MCP: docs/zh/cli-and-mcp.md
+      - 配置说明: docs/zh/configuration.md
+      - 本地 GPU 模型: docs/zh/gpu-local.md
+      - 文献库工作流: docs/zh/library-workflow.md
+      - 故障排查: docs/zh/troubleshooting.md
+      - 开发指南: docs/zh/development.md
+      - 发布指南: docs/zh/releasing.md

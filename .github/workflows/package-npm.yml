@@ -1,0 +1,22 @@
+name: Package npm
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install frontend dependencies
+        run: npm ci --prefix web
+      - name: Build frontend
+        run: npm run build --prefix web
+      - name: npm pack dry run
+        run: npm pack --dry-run

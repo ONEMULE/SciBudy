@@ -2,8 +2,23 @@
   "name": "scibudy-installer",
   "version": "0.1.0",
   "description": "Unified installer and bootstrap wrapper for Scibudy",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ONEMULE/scibudy.git"
+  },
+  "homepage": "https://github.com/ONEMULE/scibudy",
+  "bugs": {
+    "url": "https://github.com/ONEMULE/scibudy/issues"
+  },
+  "keywords": [
+    "codex",
+    "mcp",
+    "research",
+    "installer",
+    "scientific-workflow"
+  ],
   "bin": {
     "scibudy-install": "./bin/scibudy-install.mjs",
     "scibudy-bootstrap": "./bin/scibudy-install.mjs"
