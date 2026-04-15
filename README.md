@@ -1,5 +1,9 @@
 # Scibudy
 
+[![CI](https://github.com/ONEMULE/scibudy/actions/workflows/ci.yml/badge.svg)](https://github.com/ONEMULE/scibudy/actions/workflows/ci.yml)
+[![Docs](https://github.com/ONEMULE/scibudy/actions/workflows/docs.yml/badge.svg)](https://github.com/ONEMULE/scibudy/actions/workflows/docs.yml)
+[![Release Check](https://github.com/ONEMULE/scibudy/actions/workflows/release-check.yml/badge.svg)](https://github.com/ONEMULE/scibudy/actions/workflows/release-check.yml)
+
 Scibudy is a Codex-native scientific research expansion assistant for scholarly search, library management, full-text ingestion, and local semantic analysis.
 
 Scibudy combines:
@@ -24,6 +28,8 @@ Scibudy 是一个面向 Codex 的科研增强助手，提供学术检索、文�
 
 - English docs: [docs/en/index.md](docs/en/index.md)
 - 中文文档: [docs/zh/index.md](docs/zh/index.md)
+- Architecture: [docs/en/architecture.md](docs/en/architecture.md) / [docs/zh/architecture.md](docs/zh/architecture.md)
+- Support matrix: [docs/en/support-matrix.md](docs/en/support-matrix.md) / [docs/zh/support-matrix.md](docs/zh/support-matrix.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Security: [SECURITY.md](SECURITY.md)
 - Support: [SUPPORT.md](SUPPORT.md)
