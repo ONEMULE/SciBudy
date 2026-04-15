@@ -5,24 +5,28 @@ theme:
   name: material
 nav:
   - English:
-      - Overview: docs/en/index.md
-      - Installation: docs/en/installation.md
-      - Quickstart: docs/en/quickstart.md
-      - CLI and MCP: docs/en/cli-and-mcp.md
-      - Configuration: docs/en/configuration.md
-      - GPU Local: docs/en/gpu-local.md
-      - Library Workflow: docs/en/library-workflow.md
-      - Troubleshooting: docs/en/troubleshooting.md
-      - Development: docs/en/development.md
-      - Releasing: docs/en/releasing.md
+      - Overview: en/index.md
+      - Installation: en/installation.md
+      - Quickstart: en/quickstart.md
+      - CLI and MCP: en/cli-and-mcp.md
+      - Configuration: en/configuration.md
+      - GPU Local: en/gpu-local.md
+      - Library Workflow: en/library-workflow.md
+      - Architecture: en/architecture.md
+      - Support Matrix: en/support-matrix.md
+      - Troubleshooting: en/troubleshooting.md
+      - Development: en/development.md
+      - Releasing: en/releasing.md
   - 中文:
-      - 概览: docs/zh/index.md
-      - 安装: docs/zh/installation.md
-      - 快速开始: docs/zh/quickstart.md
-      - CLI 与 MCP: docs/zh/cli-and-mcp.md
-      - 配置说明: docs/zh/configuration.md
-      - 本地 GPU 模型: docs/zh/gpu-local.md
-      - 文献库工作流: docs/zh/library-workflow.md
-      - 故障排查: docs/zh/troubleshooting.md
-      - 开发指南: docs/zh/development.md
-      - 发布指南: docs/zh/releasing.md
+      - 概览: zh/index.md
+      - 安装: zh/installation.md
+      - 快速开始: zh/quickstart.md
+      - CLI 与 MCP: zh/cli-and-mcp.md
+      - 配置说明: zh/configuration.md
+      - 本地 GPU 模型: zh/gpu-local.md
+      - 文献库工作流: zh/library-workflow.md
+      - 架构说明: zh/architecture.md
+      - 支持矩阵: zh/support-matrix.md
+      - 故障排查: zh/troubleshooting.md
+      - 开发指南: zh/development.md
+      - 发布指南: zh/releasing.md
