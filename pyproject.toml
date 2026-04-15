@@ -42,7 +42,7 @@ dependencies = [
   "python-dotenv>=1.2.2,<2.0.0",
   "beautifulsoup4>=4.12.3,<5.0.0",
   "openai>=1.102.0,<2.0.0",
-  "pypdf>=5.9.0,<6.0.0",
+  "pypdf>=5.9.0,<7.0.0",
 ]
 
 [project.optional-dependencies]
