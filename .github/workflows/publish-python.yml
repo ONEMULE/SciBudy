@@ -9,6 +9,8 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     if: vars.PYPI_TRUSTED_PUBLISHING_ENABLED == 'true'
+    environment:
+      name: pypi
     permissions:
       contents: read
       id-token: write

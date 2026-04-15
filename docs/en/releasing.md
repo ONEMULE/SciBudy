@@ -40,6 +40,13 @@ Repository variable:
 
 - `PYPI_TRUSTED_PUBLISHING_ENABLED=true`
 
+Trusted publisher values for this repository:
+
+- owner: `ONEMULE`
+- repository: `scibudy`
+- workflow: `.github/workflows/publish-python.yml`
+- environment: `pypi`
+
 If neither trusted publishing nor `PYPI_API_TOKEN` is configured, the publish workflow skips instead of failing.
 
 ### npm

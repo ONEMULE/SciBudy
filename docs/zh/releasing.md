@@ -36,6 +36,13 @@ npm pack --dry-run
 
 - `PYPI_TRUSTED_PUBLISHING_ENABLED=true`
 
+当前仓库对应的 trusted publisher 参数：
+
+- owner：`ONEMULE`
+- repository：`scibudy`
+- workflow：`.github/workflows/publish-python.yml`
+- environment：`pypi`
+
 如果 trusted publishing 和 `PYPI_API_TOKEN` 都没有配置，PyPI 发布工作流会自动跳过，不会直接报红。
 
 ### npm
