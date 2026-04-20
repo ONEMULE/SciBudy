@@ -90,6 +90,37 @@ def format_open_access_response(payload: dict[str, Any], *, fmt: str = "table") 
     return "\n".join(lines)
 
 
+def format_research_workflow_response(payload: dict[str, Any], *, fmt: str = "table") -> str:
+    if fmt == "json":
+        return json.dumps(payload, indent=2, ensure_ascii=False)
+    lines = [
+        f"status: {payload.get('status', '')}",
+        f"query: {payload.get('query', '')}",
+        f"mode: {payload.get('mode', '')}",
+        f"library_id: {payload.get('library_id', '')}",
+        f"target_dir: {payload.get('target_dir', '')}",
+        f"results: {payload.get('result_count', 0)}",
+        f"download_status: {payload.get('download_status', '')}",
+        f"ingest_status: {payload.get('ingest_status', '')}",
+        f"synthesis_status: {payload.get('synthesis_status', '')}",
+    ]
+    if payload.get("synthesis_report_id"):
+        lines.append(f"synthesis_report_id: {payload['synthesis_report_id']}")
+    if payload.get("synthesis_report_path"):
+        lines.append(f"synthesis_report_path: {payload['synthesis_report_path']}")
+    if payload.get("synthesis_summary"):
+        lines.extend(["", payload["synthesis_summary"]])
+    warnings = payload.get("warnings") or []
+    if warnings:
+        lines.extend(["", "warnings:"])
+        lines.extend(f"- {warning}" for warning in warnings)
+    next_actions = payload.get("next_actions") or []
+    if next_actions:
+        lines.extend(["", "next_actions:"])
+        lines.extend(f"- {action}" for action in next_actions)
+    return "\n".join(lines)
+
+
 def format_download_batch_response(payload: dict[str, Any], *, fmt: str = "table") -> str:
     if fmt == "json":
         return json.dumps(payload, indent=2, ensure_ascii=False)

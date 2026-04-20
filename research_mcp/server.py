@@ -26,6 +26,7 @@ from research_mcp.models import (
     ManagementBootstrapResponse,
     OpenAccessResponse,
     OrganizeLibraryResponse,
+    ResearchWorkflowResponse,
     SearchResponse,
 )
 from research_mcp.service import get_service
@@ -60,12 +61,47 @@ RENDER_TOOL_META = {
 
 
 @app.tool(
-    description="Unified literature search across multiple scholarly providers.",
+    description="Search scholarly literature only. Use research_workflow when the agent should also build a library, ingest text, or synthesize evidence.",
     structured_output=True,
     annotations=READ_ONLY_TOOL,
 )
 def search_literature(query: str, mode: str = "general", limit: int = 10, sort: str = "relevance") -> SearchResponse:
     return get_service().search_literature(query=query, mode=mode, limit=limit, sort=sort)
+
+
+@app.tool(
+    description="Agent-first research workflow: search, organize a library, optionally download PDFs, ingest full text, and build a synthesis report. Best default entrypoint for Codex agents.",
+    structured_output=True,
+    annotations=MUTATING_TOOL,
+)
+def research_workflow(
+    query: str,
+    mode: str = "general",
+    limit: int = 20,
+    sort: str = "relevance",
+    target_dir: str | None = None,
+    name: str | None = None,
+    download_pdfs: bool = True,
+    ingest: bool = True,
+    synthesize: bool = True,
+    topic: str | None = None,
+    profile: str = "auto",
+    include_forums: bool = True,
+) -> ResearchWorkflowResponse:
+    return get_service().research_workflow(
+        query=query,
+        mode=mode,
+        limit=limit,
+        sort=sort,
+        target_dir=target_dir,
+        name=name,
+        download_pdfs=download_pdfs,
+        ingest=ingest,
+        synthesize=synthesize,
+        topic=topic,
+        profile=profile,
+        include_forums=include_forums,
+    )
 
 
 @app.tool(
@@ -128,7 +164,7 @@ def organize_library(
 
 
 @app.tool(
-    description="Run a search and immediately organize the results into a local literature library, downloading PDFs by default when available and preserving rich manual download checklist data when downloads miss.",
+    description="Search and organize a library. Does not ingest full text or synthesize; use research_workflow for the complete agent workflow.",
     structured_output=True,
 )
 def collect_library(

@@ -32,6 +32,7 @@ from research_mcp.models import (
     OrganizeLibraryResponse,
     ProviderCoverage,
     ProviderStatus,
+    ResearchWorkflowResponse,
     SearchResponse,
 )
 from research_mcp.paths import APP_HOME, CODEX_CONFIG_FILE, ENV_FILE, INSTALL_STATE_FILE, PROJECT_ROOT, command_path
@@ -82,6 +83,126 @@ class ResearchService:
 
     def search_biomed(self, query: str, limit: int = 10, sort: str = "relevance") -> SearchResponse:
         return self.search_literature(query=query, mode="biomed", limit=limit, sort=sort)
+
+    def research_workflow(
+        self,
+        *,
+        query: str,
+        mode: str = "general",
+        limit: int = 20,
+        sort: str = "relevance",
+        target_dir: str | None = None,
+        name: str | None = None,
+        download_pdfs: bool = True,
+        ingest: bool = True,
+        synthesize: bool = True,
+        topic: str | None = None,
+        profile: str = "auto",
+        include_forums: bool = True,
+    ) -> ResearchWorkflowResponse:
+        mode = mode.strip().lower()
+        if mode not in MODE_TO_PROVIDERS:
+            raise ValueError("mode must be one of: general, preprint, biomed")
+        sort = _validate_sort(sort)
+        query = _validate_query(query)
+        limit = _validate_limit(limit)
+        profile = _validate_profile(profile)
+        synthesis_topic = _validate_query(topic) if topic else query
+        warnings: list[str] = []
+
+        search_response = self.search_literature(query=query, mode=mode, limit=limit, sort=sort)
+        warnings.extend(search_response.warnings)
+        if search_response.result_count == 0:
+            return ResearchWorkflowResponse(
+                status="error",
+                generated_at=now_utc_iso(),
+                query=query,
+                mode=mode,  # type: ignore[arg-type]
+                sort=sort,  # type: ignore[arg-type]
+                topic=synthesis_topic,
+                profile=profile,
+                result_count=0,
+                provider_coverage=search_response.provider_coverage,
+                warnings=warnings or ["search returned no results"],
+                next_actions=["Try a broader query or use search_source for targeted provider debugging."],
+            )
+
+        results = response_to_results(search_response)
+        library_response = self.library.organize_library(
+            results=results,
+            target_dir=target_dir,
+            limit=search_response.result_count,
+            source_kind="query",
+            source_ref=query,
+            download_pdfs=download_pdfs,
+        )
+        library_id = self._register_library(library_response, results, name=name)
+        library_response.library_id = library_id
+        warnings.extend(library_response.warnings)
+
+        ingest_response: IngestResponse | None = None
+        synthesis_response: AnalysisSummaryResponse | None = None
+        if ingest:
+            ingest_response = self.ingest_library(library_id, include_forums=include_forums, reingest=False)
+            warnings.extend(ingest_response.warnings)
+        elif synthesize:
+            warnings.append("synthesis skipped because ingest=false")
+
+        if synthesize and ingest_response and ingest_response.ready_count > 0:
+            synthesis_response = self.build_research_synthesis(
+                library_id,
+                synthesis_topic,
+                max_items=limit,
+                profile=profile,
+            )
+            warnings.extend(synthesis_response.warnings)
+        elif synthesize and ingest_response and ingest_response.ready_count == 0:
+            warnings.append("synthesis skipped because no ingested items are ready")
+
+        status = self._workflow_status(
+            library_response=library_response,
+            ingest_response=ingest_response,
+            synthesis_response=synthesis_response,
+            warnings=warnings,
+            requested_ingest=ingest,
+            requested_synthesis=synthesize,
+        )
+        return ResearchWorkflowResponse(
+            status=status,  # type: ignore[arg-type]
+            generated_at=now_utc_iso(),
+            query=query,
+            mode=mode,  # type: ignore[arg-type]
+            sort=sort,  # type: ignore[arg-type]
+            topic=synthesis_topic,
+            profile=profile,
+            result_count=search_response.result_count,
+            provider_coverage=search_response.provider_coverage,
+            library_id=library_id,
+            target_dir=library_response.target_dir,
+            paths={
+                "manifest": library_response.manifest_path,
+                "csv": library_response.csv_path,
+                "markdown": library_response.markdown_path,
+                "bibtex": library_response.bibtex_path,
+                "download_checklist_csv": library_response.download_checklist_csv_path,
+                "download_checklist_markdown": library_response.download_checklist_markdown_path,
+            },
+            counts={
+                "search_results": search_response.result_count,
+                "download_requested": library_response.requested_count,
+                "downloaded": library_response.downloaded_count,
+                "ingest_processed": ingest_response.processed_count if ingest_response else 0,
+                "ingest_ready": ingest_response.ready_count if ingest_response else 0,
+            },
+            download_status=library_response.status,
+            ingest_status=ingest_response.status if ingest_response else ("skipped" if not ingest else None),
+            synthesis_status=synthesis_response.status if synthesis_response else ("skipped" if synthesize else None),
+            synthesis_report_id=synthesis_response.report_id if synthesis_response else None,
+            synthesis_report_path=synthesis_response.report_path if synthesis_response else None,
+            synthesis_summary=synthesis_response.summary if synthesis_response else None,
+            warnings=list(dict.fromkeys(warnings)),
+            next_actions=self._workflow_next_actions(library_id, library_response, ingest_response, synthesis_response, ingest, synthesize),
+        )
 
     def search_source(self, source: str, query: str, limit: int = 10, sort: str = "relevance") -> SearchResponse:
         source_key = source.strip().lower()
@@ -409,6 +530,7 @@ class ResearchService:
             local_model_env_ready=local_env_python.exists(),
             local_model_profile=install_state.local_models.profile,
             available_tools=[
+                "research_workflow",
                 "search_literature",
                 "search_biomed",
                 "search_source",
@@ -578,6 +700,48 @@ class ResearchService:
             records=response.records,
         )
         return summary.id
+
+    def _workflow_status(
+        self,
+        *,
+        library_response: OrganizeLibraryResponse,
+        ingest_response: IngestResponse | None,
+        synthesis_response: AnalysisSummaryResponse | None,
+        warnings: list[str],
+        requested_ingest: bool,
+        requested_synthesis: bool,
+    ) -> str:
+        if library_response.status == "error":
+            return "error"
+        if requested_ingest and ingest_response and ingest_response.status == "error":
+            return "partial"
+        if requested_synthesis and synthesis_response and synthesis_response.status == "error":
+            return "partial"
+        if warnings or library_response.status == "partial" or (ingest_response and ingest_response.status == "partial"):
+            return "partial"
+        return "ok"
+
+    def _workflow_next_actions(
+        self,
+        library_id: str,
+        library_response: OrganizeLibraryResponse,
+        ingest_response: IngestResponse | None,
+        synthesis_response: AnalysisSummaryResponse | None,
+        requested_ingest: bool,
+        requested_synthesis: bool,
+    ) -> list[str]:
+        actions = [f"Use read_library with library_id={library_id} to inspect the organized library."]
+        if library_response.downloaded_count < library_response.requested_count:
+            actions.append(f"Review manual download checklist: {library_response.download_checklist_markdown_path}")
+        if not requested_ingest:
+            actions.append(f"Use ingest_library with library_id={library_id} before evidence search or synthesis.")
+        elif ingest_response and ingest_response.ready_count > 0:
+            actions.append(f"Use search_library_evidence with library_id={library_id} for targeted evidence questions.")
+        if requested_synthesis and synthesis_response and synthesis_response.report_id:
+            actions.append(f"Use read_synthesis_report with report_id={synthesis_response.report_id}.")
+        elif not requested_synthesis and (ingest_response is None or ingest_response.ready_count > 0):
+            actions.append(f"Use build_research_synthesis with library_id={library_id} when ready.")
+        return actions
 
 
 def _validate_query(query: str) -> str:

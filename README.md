@@ -94,10 +94,19 @@ scibudy analysis-settings
 scibudy ingest-library <library_id>
 scibudy search-evidence <library_id> calibration
 scibudy profiles
+scibudy workflow "calibration methods in simulation-based inference" --limit 50 --topic "calibration in simulation-based inference"
 scibudy synthesize-library <library_id> "causal inference robustness" --profile general
 scibudy synthesize-library <library_id> "calibration in simulation-based inference" --profile sbi_calibration
 scibudy ui --open
 ```
+
+For Codex and other agents, prefer the high-level workflow entrypoint when you want the whole research loop:
+
+```text
+Use research/research_workflow with query="calibration methods in simulation-based inference", mode="general", limit=50, synthesize=true.
+```
+
+Use lower-level tools such as `search_literature`, `collect_library`, `ingest_library`, and `build_research_synthesis` when you need manual control over each step.
 
 ## Domain profiles
 

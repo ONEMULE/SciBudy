@@ -364,6 +364,30 @@ class DomainProfilesResponse(BaseModel):
     profiles: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class ResearchWorkflowResponse(BaseModel):
+    status: Literal["ok", "partial", "error"]
+    generated_at: str
+    query: str
+    mode: Literal["general", "preprint", "biomed"]
+    sort: Literal["relevance", "recent"]
+    topic: str | None = None
+    profile: str = "auto"
+    result_count: int = 0
+    provider_coverage: list[ProviderCoverage] = Field(default_factory=list)
+    library_id: str | None = None
+    target_dir: str | None = None
+    paths: dict[str, Any] = Field(default_factory=dict)
+    counts: dict[str, int] = Field(default_factory=dict)
+    download_status: str | None = None
+    ingest_status: str | None = None
+    synthesis_status: str | None = None
+    synthesis_report_id: str | None = None
+    synthesis_report_path: str | None = None
+    synthesis_summary: str | None = None
+    next_actions: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 # Backward-compatible aliases for older CLI/service code paths.
 LibraryListResponse = LibrariesResponse
 LibraryItemRecord = LibraryItemEntry
