@@ -257,15 +257,94 @@ def test_build_research_synthesis_persists_structured_payload(tmp_path):
     assert response.status == "ok"
     payload = response.structured_payload
     assert payload["schema_version"] == "research_synthesis.v1"
+    assert payload["profile"] == "sbi_calibration"
     assert payload["analyzed_item_count"] == 2
+    assert payload["evidence_coverage"]["evidence_backed_item_count"] == 2
+    assert payload["missing_fulltext_count"] == 0
+    assert payload["confidence"] > 0.5
     assert len(payload["method_cards"]) == 2
     assert payload["comparison_matrix"]
     assert payload["claim_evidence_graph"]["claims"]
+    assert any(claim["support_status"] == "supported" for claim in payload["claim_evidence_graph"]["claims"])
     assert payload["calibration_protocol_digest"]["protocol_steps"]
 
     report = engine.read_report(response.report_id)
     assert report.status == "ok"
     assert report.structured_payload["schema_version"] == "research_synthesis.v1"
+
+
+def test_build_research_synthesis_tracks_missing_fulltext_and_unsupported_claims(tmp_path):
+    settings = Settings(
+        RESEARCH_MCP_CACHE_DB_PATH=str(tmp_path / "state.db"),
+        RESEARCH_MCP_ANALYSIS_MODE="rules",
+        RESEARCH_MCP_COMPUTE_BACKEND="local",
+        RESEARCH_MCP_FORUM_ENRICHMENT_ENABLED="false",
+        RESEARCH_MCP_LOCAL_EMBEDDING_MODEL="hash-embedding-v1",
+    )
+    engine = AnalysisEngine(settings, tmp_path / "state.db")
+    chunks = engine._chunk_text("item1", "Abstract\n\nCalibration is useful but details are sparse.")
+    engine._store_ingest(
+        item=LibraryItemEntry(
+            id="item1",
+            library_id="lib1",
+            rank=1,
+            title="Sparse Calibration Paper",
+            effective_title="Sparse Calibration Paper",
+            authors=[],
+            source="OpenAlex",
+        ),
+        library_id="lib1",
+        source_label="test",
+        text_path=engine._write_text("lib1", "item1", "Calibration is useful but details are sparse."),
+        chunks=chunks,
+        discussion=[],
+    )
+    missing = LibraryItemEntry(
+        id="item2",
+        library_id="lib1",
+        rank=2,
+        title="Missing Paper",
+        effective_title="Missing Paper",
+        authors=[],
+        source="OpenAlex",
+        landing_url="https://example.com/missing",
+    )
+    detail = LibraryDetailResponse(
+        status="ok",
+        generated_at="now",
+        library=LibrarySummary(
+            id="lib1",
+            name="Sparse library",
+            slug="sparse-library",
+            source_kind="query",
+            source_ref="calibration",
+            root_path=str(tmp_path / "library"),
+            created_at="now",
+            updated_at="now",
+        ),
+        items=[
+            LibraryItemEntry(
+                id="item1",
+                library_id="lib1",
+                rank=1,
+                title="Sparse Calibration Paper",
+                effective_title="Sparse Calibration Paper",
+                authors=[],
+                source="OpenAlex",
+            ),
+            missing,
+        ],
+    )
+
+    response = engine.build_research_synthesis(detail, topic="calibration in simulation-based inference", profile="sbi_calibration")
+
+    assert response.status == "ok"
+    payload = response.structured_payload
+    assert payload["missing_fulltext_count"] == 1
+    assert payload["missing_fulltext"][0]["item_id"] == "item2"
+    assert payload["manual_review_needed"] is True
+    assert "missing_fulltext" in payload["risk_flags"]
+    assert payload["unsupported_claims"]
 
 
 def test_openai_runtime_failure_falls_back_to_local(tmp_path):

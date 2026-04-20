@@ -355,6 +355,7 @@ def build_parser() -> argparse.ArgumentParser:
     synthesize_parser.add_argument("library_id")
     synthesize_parser.add_argument("topic")
     synthesize_parser.add_argument("--max-items", type=int, default=50)
+    synthesize_parser.add_argument("--profile", choices=["auto", "general", "sbi_calibration"], default="auto")
     synthesize_parser.add_argument("--format", choices=["table", "json"], default="table")
 
     reports_parser = subparsers.add_parser("analysis-reports", help="List persisted analysis reports.")
@@ -702,7 +703,7 @@ def run_search_evidence(args: argparse.Namespace) -> None:
 
 
 def run_synthesize_library(args: argparse.Namespace) -> None:
-    response = ResearchService().build_research_synthesis(args.library_id, args.topic, max_items=args.max_items)
+    response = ResearchService().build_research_synthesis(args.library_id, args.topic, max_items=args.max_items, profile=args.profile)
     print(format_analysis_summary_response(response.model_dump(mode="json"), fmt=args.format))
 
 

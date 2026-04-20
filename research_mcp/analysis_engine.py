@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup
 from pypdf import PdfReader
 
 from research_mcp.analysis_config import settings_response, update_settings
+from research_mcp.domain_profiles import DomainProfile, resolve_domain_profile
 from research_mcp.errors import IngestionError
 from research_mcp.local_embedding_client import LocalEmbeddingClient
 from research_mcp.local_reranker_client import LocalRerankerClient
@@ -33,7 +34,7 @@ from research_mcp.models import (
 )
 from research_mcp.paths import ANALYSIS_DIR
 from research_mcp.settings import Settings
-from research_mcp.utils import now_utc_iso, slugify
+from research_mcp.utils import now_utc_iso, safe_int as _safe_int, slugify
 
 try:
     from openai import OpenAI
@@ -521,7 +522,7 @@ class AnalysisEngine:
             ],
         )
 
-    def build_research_synthesis(self, detail: LibraryDetailResponse, *, topic: str, max_items: int = 50) -> AnalysisSummaryResponse:
+    def build_research_synthesis(self, detail: LibraryDetailResponse, *, topic: str, max_items: int = 50, profile: str = "auto") -> AnalysisSummaryResponse:
         if detail.status != "ok" or not detail.library:
             return AnalysisSummaryResponse(
                 status="error",
@@ -531,6 +532,7 @@ class AnalysisEngine:
                 title="Research synthesis",
                 summary="Library not found.",
             )
+        domain_profile = resolve_domain_profile(profile, topic)
         selected_items = [item for item in detail.items if not item.archived][: max(1, min(int(max_items), 50))]
         method_cards: list[dict[str, Any]] = []
         matrix_rows: list[dict[str, Any]] = []
@@ -538,14 +540,30 @@ class AnalysisEngine:
         edges: list[dict[str, str]] = []
         evidence_records: list[EvidenceRecord] = []
         warnings: list[str] = []
+        missing_fulltext: list[dict[str, Any]] = []
+        unsupported_claims: list[dict[str, Any]] = []
 
         for item in selected_items:
             chunks = self._load_chunks_for_item(item.id)
             if not chunks:
                 warnings.append(f"{item.effective_title}: not ingested")
+                missing_fulltext.append(
+                    {
+                        "item_id": item.id,
+                        "rank": item.rank,
+                        "title": item.effective_title,
+                        "doi": item.doi,
+                        "landing_url": item.landing_url,
+                        "pdf_url": item.pdf_url,
+                        "open_access_url": item.open_access_url,
+                        "reason": "not ingested or no extractable chunks",
+                    }
+                )
                 continue
-            selected_chunks = self._select_chunks(chunks, topic=topic, max_chunks=5)
+            selected_chunks = self._select_chunks(chunks, topic=topic, max_chunks=5, profile=domain_profile)
             fields = self._structured_item_fields(item.effective_title, selected_chunks, topic=topic)
+            metadata = self._metadata_for_item(item)
+            citation_hint = self._citation_graph_hint(item, metadata, topic=topic)
             chunk_evidence = [self._chunk_evidence_record(chunk, item) for chunk in selected_chunks[:3]]
             evidence_records.extend(chunk_evidence)
             card = {
@@ -562,6 +580,7 @@ class AnalysisEngine:
                 "failure_modes": fields["failure_modes"],
                 "limitations": fields["limitations"],
                 "practical_value": fields["practical_value"],
+                "citation_graph": citation_hint,
                 "evidence_ids": [ev.id for ev in chunk_evidence],
             }
             method_cards.append(card)
@@ -583,19 +602,24 @@ class AnalysisEngine:
                 (fields["limitations"], "limitation"),
             ]:
                 claim_id = slugify(f"{item.id}-{claim_type}-{claim_text}", max_length=72)
-                claims.append(
-                    {
-                        "id": claim_id,
-                        "type": claim_type,
-                        "item_id": item.id,
-                        "title": item.effective_title,
-                        "claim": claim_text,
-                        "evidence_ids": [ev.id for ev in chunk_evidence],
-                        "confidence": self._claim_confidence(claim_text, chunk_evidence),
-                    }
-                )
-                for ev in chunk_evidence:
-                    edges.append({"claim_id": claim_id, "evidence_id": ev.id, "relation": "supports"})
+                support_status = self._claim_support_status(claim_text, chunk_evidence, domain_profile)
+                evidence_ids = [ev.id for ev in chunk_evidence] if support_status == "supported" else []
+                claim = {
+                    "id": claim_id,
+                    "type": claim_type,
+                    "item_id": item.id,
+                    "title": item.effective_title,
+                    "claim": claim_text,
+                    "evidence_ids": evidence_ids,
+                    "support_status": support_status,
+                    "confidence": self._claim_confidence(claim_text, chunk_evidence) if support_status == "supported" else 0.2,
+                }
+                claims.append(claim)
+                if support_status == "supported":
+                    for ev in chunk_evidence:
+                        edges.append({"claim_id": claim_id, "evidence_id": ev.id, "relation": "supports"})
+                else:
+                    unsupported_claims.append(claim)
 
         if not method_cards:
             return AnalysisSummaryResponse(
@@ -611,13 +635,34 @@ class AnalysisEngine:
             )
 
         protocol_digest = self._calibration_protocol_digest(method_cards, topic=topic)
+        evidence_coverage = self._evidence_coverage(method_cards, missing_fulltext, selected_items)
+        risk_flags = self._synthesis_risk_flags(
+            missing_fulltext=missing_fulltext,
+            unsupported_claims=unsupported_claims,
+            evidence_coverage=evidence_coverage,
+        )
+        confidence = self._synthesis_confidence(
+            evidence_coverage=evidence_coverage,
+            unsupported_claims=unsupported_claims,
+            risk_flags=risk_flags,
+        )
         structured_payload = {
             "schema_version": "research_synthesis.v1",
             "library_id": detail.library.id,
             "library_name": detail.library.name,
             "topic": topic,
+            "profile": domain_profile.name,
             "requested_max_items": max_items,
+            "selected_item_count": len(selected_items),
             "analyzed_item_count": len(method_cards),
+            "missing_fulltext_count": len(missing_fulltext),
+            "missing_fulltext": missing_fulltext,
+            "evidence_coverage": evidence_coverage,
+            "confidence": confidence,
+            "risk_flags": risk_flags,
+            "manual_review_needed": bool(risk_flags),
+            "unsupported_claims": unsupported_claims,
+            "citation_graph_summary": self._citation_graph_summary(method_cards),
             "method_cards": method_cards,
             "comparison_matrix": matrix_rows,
             "claim_evidence_graph": {"claims": claims, "edges": edges},
@@ -661,7 +706,12 @@ class AnalysisEngine:
             evidence=evidence_records[:20],
             library_id=detail.library.id,
             topic=topic,
-            structured_payload={"schema_version": "claim_evidence_graph.v1", "claims": claims, "edges": edges},
+            structured_payload={
+                "schema_version": "claim_evidence_graph.v1",
+                "claims": claims,
+                "edges": edges,
+                "unsupported_claims": unsupported_claims,
+            },
         )
         self._persist_report(
             analysis_kind="calibration_protocol_digest",
@@ -1049,17 +1099,18 @@ class AnalysisEngine:
             for row in rows
         ]
 
-    def _select_chunks(self, chunks: list[ChunkRecord], *, topic: str | None, max_chunks: int) -> list[ChunkRecord]:
+    def _select_chunks(self, chunks: list[ChunkRecord], *, topic: str | None, max_chunks: int, profile: DomainProfile | None = None) -> list[ChunkRecord]:
         if not chunks:
             return []
         if not topic:
             return chunks[:max_chunks]
-        ranked = self._rank_chunks(chunks, topic=topic)
+        ranked = self._rank_chunks(chunks, topic=topic, profile=profile)
         return self._rerank_chunks(ranked[: max(max_chunks * 3, 12)], query=topic)[:max_chunks]
 
-    def _rank_chunks(self, chunks: list[ChunkRecord], *, topic: str) -> list[ChunkRecord]:
+    def _rank_chunks(self, chunks: list[ChunkRecord], *, topic: str, profile: DomainProfile | None = None) -> list[ChunkRecord]:
         if not chunks:
             return []
+        domain_profile = profile or resolve_domain_profile("auto", topic)
         lexical_rows = self._lexical_rank(chunks, topic)
         lexical_scores = {chunk.id: score for score, chunk in lexical_rows}
         semantic_scores: dict[str, float] = {}
@@ -1080,6 +1131,8 @@ class AnalysisEngine:
                 combined = lexical_score * 0.6 + semantic_score * 0.4
             else:
                 combined = lexical_score
+            combined += domain_profile.section_weights.get(chunk.section, 0.0)
+            combined += self._profile_marker_score(chunk.text, domain_profile)
             ranked.append((combined, chunk))
         ranked.sort(
             key=lambda item: (
@@ -1241,6 +1294,123 @@ class AnalysisEngine:
         if not evidence:
             return 0.45
         return round(min(0.95, max(ev.confidence_score or 0.0 for ev in evidence)), 3)
+
+    def _claim_support_status(self, claim: str, evidence: list[EvidenceRecord], profile: DomainProfile) -> str:
+        lower = claim.lower()
+        if any(marker in lower for marker in profile.unsupported_markers):
+            return "unsupported"
+        if not evidence:
+            return "unsupported"
+        claim_tokens = {token for token in re.findall(r"[a-z0-9]+", lower) if len(token) > 3}
+        if not claim_tokens:
+            return "unsupported"
+        for record in evidence:
+            text = f"{record.title or ''} {record.excerpt or ''}".lower()
+            evidence_tokens = {token for token in re.findall(r"[a-z0-9]+", text) if len(token) > 3}
+            if len(claim_tokens & evidence_tokens) / max(len(claim_tokens), 1) >= 0.15:
+                return "supported"
+        return "unsupported"
+
+    def _evidence_coverage(
+        self,
+        method_cards: list[dict[str, Any]],
+        missing_fulltext: list[dict[str, Any]],
+        selected_items: list[LibraryItemEntry],
+    ) -> dict[str, Any]:
+        selected_count = len(selected_items)
+        evidence_backed_count = sum(1 for card in method_cards if card.get("evidence_ids"))
+        missing_count = len(missing_fulltext)
+        denominator = max(selected_count, 1)
+        return {
+            "selected_item_count": selected_count,
+            "analyzed_item_count": len(method_cards),
+            "evidence_backed_item_count": evidence_backed_count,
+            "missing_fulltext_count": missing_count,
+            "item_coverage_ratio": round(len(method_cards) / denominator, 4),
+            "evidence_backed_ratio": round(evidence_backed_count / denominator, 4),
+        }
+
+    def _synthesis_risk_flags(
+        self,
+        *,
+        missing_fulltext: list[dict[str, Any]],
+        unsupported_claims: list[dict[str, Any]],
+        evidence_coverage: dict[str, Any],
+    ) -> list[str]:
+        flags: list[str] = []
+        if missing_fulltext:
+            flags.append("missing_fulltext")
+        if unsupported_claims:
+            flags.append("unsupported_claims")
+        if float(evidence_coverage.get("evidence_backed_ratio") or 0.0) < 0.8:
+            flags.append("low_evidence_coverage")
+        return flags
+
+    def _synthesis_confidence(
+        self,
+        *,
+        evidence_coverage: dict[str, Any],
+        unsupported_claims: list[dict[str, Any]],
+        risk_flags: list[str],
+    ) -> float:
+        score = float(evidence_coverage.get("evidence_backed_ratio") or 0.0)
+        score -= min(len(unsupported_claims) * 0.03, 0.3)
+        score -= min(len(risk_flags) * 0.08, 0.24)
+        return round(max(0.05, min(0.95, score)), 3)
+
+    def _profile_marker_score(self, text: str, profile: DomainProfile) -> float:
+        lower = text.lower()
+        hits = sum(1 for marker in profile.evidence_markers if marker in lower)
+        return min(hits * 0.015, 0.12)
+
+    def _metadata_for_item(self, item: LibraryItemEntry) -> dict[str, Any]:
+        if not item.metadata_path:
+            return {}
+        try:
+            path = Path(item.metadata_path).expanduser()
+            if not path.exists():
+                return {}
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            return payload if isinstance(payload, dict) else {}
+        except Exception:  # noqa: BLE001
+            return {}
+
+    def _citation_graph_hint(self, item: LibraryItemEntry, metadata: dict[str, Any], *, topic: str) -> dict[str, Any]:
+        extras = metadata.get("extras") if isinstance(metadata.get("extras"), dict) else {}
+        citation_count = _safe_int(metadata.get("citation_count"))
+        influential = _safe_int(extras.get("influential_citation_count"))
+        reference_count = _safe_int(extras.get("reference_count"))
+        title_topic_overlap = _token_overlap(topic, item.effective_title)
+        role = "supporting"
+        if citation_count and citation_count >= 250:
+            role = "foundational"
+        elif item.year and item.year >= 2023:
+            role = "recent"
+        if title_topic_overlap >= 0.35:
+            role = "method_specific" if role == "supporting" else f"{role}+method_specific"
+        return {
+            "citation_count": citation_count,
+            "influential_citation_count": influential,
+            "reference_count": reference_count,
+            "role": role,
+            "metadata_available": bool(metadata),
+            "merged_sources": extras.get("merged_sources") or [],
+        }
+
+    def _citation_graph_summary(self, method_cards: list[dict[str, Any]]) -> dict[str, Any]:
+        roles: dict[str, int] = {}
+        enriched = 0
+        for card in method_cards:
+            citation = card.get("citation_graph") or {}
+            if citation.get("metadata_available"):
+                enriched += 1
+            role = str(citation.get("role") or "supporting")
+            roles[role] = roles.get(role, 0) + 1
+        return {
+            "enriched_item_count": enriched,
+            "total_item_count": len(method_cards),
+            "roles": roles,
+        }
 
     def _calibration_protocol_digest(self, method_cards: list[dict[str, Any]], *, topic: str) -> dict[str, list[str] | str]:
         protocols = _dedupe([card["protocol"] for card in method_cards])

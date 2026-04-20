@@ -276,12 +276,13 @@ class ResearchService:
     def search_library_evidence(self, library_id: str, query: str, max_hits: int = 8) -> AnalysisSummaryResponse:
         return self.analysis.search_library_evidence(self.read_library(library_id), query=query, max_hits=max_hits)
 
-    def build_research_synthesis(self, library_id: str, topic: str, max_items: int = 50) -> AnalysisSummaryResponse:
+    def build_research_synthesis(self, library_id: str, topic: str, max_items: int = 50, profile: str = "auto") -> AnalysisSummaryResponse:
         cleaned_topic = _validate_query(topic)
         return self.analysis.build_research_synthesis(
             self.read_library(library_id),
             topic=cleaned_topic,
             max_items=_validate_limit(max_items),
+            profile=_validate_profile(profile),
         )
 
     def read_synthesis_report(self, report_id: str) -> AnalysisReportDetailResponse:
@@ -588,6 +589,13 @@ def _validate_sort(sort: str) -> str:
     normalized = sort.strip().lower()
     if normalized not in {"relevance", "recent"}:
         raise ValueError("sort must be one of: relevance, recent")
+    return normalized
+
+
+def _validate_profile(profile: str) -> str:
+    normalized = (profile or "auto").strip().lower()
+    if normalized not in {"auto", "general", "sbi_calibration"}:
+        raise ValueError("profile must be one of: auto, general, sbi_calibration")
     return normalized
 
 
