@@ -26,6 +26,7 @@ def render_managed_block() -> str:
             "enabled = true",
             "required = false",
             "enabled_tools = [",
+            '  "research_workflow",',
             '  "search_literature",',
             '  "search_biomed",',
             '  "search_source",',

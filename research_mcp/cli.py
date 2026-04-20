@@ -26,6 +26,7 @@ from research_mcp.formatters import (
     format_open_access_response,
     format_organize_library_response,
     format_provider_statuses,
+    format_research_workflow_response,
     format_run_list,
     format_search_response,
 )
@@ -98,6 +99,8 @@ def dispatch(args: argparse.Namespace) -> None:
         print(f"Installed research MCP block into {install_to_codex_config()}")
     elif args.command == "search":
         run_search(args)
+    elif args.command == "workflow":
+        run_workflow(args)
     elif args.command == "source":
         run_source(args)
     elif args.command == "oa":
@@ -212,6 +215,21 @@ def build_parser() -> argparse.ArgumentParser:
     search_parser.add_argument("--format", choices=["table", "json", "markdown", "titles", "tsv"], default="table")
     search_parser.add_argument("--details", action="store_true")
     search_parser.add_argument("--save", action="store_true")
+
+    workflow_parser = subparsers.add_parser("workflow", help="Agent-first workflow: search, organize, optionally ingest, and synthesize.")
+    workflow_parser.add_argument("query", nargs="+")
+    workflow_parser.add_argument("--mode", choices=["general", "preprint", "biomed"], default="general")
+    workflow_parser.add_argument("--limit", type=int, default=20)
+    workflow_parser.add_argument("--sort", choices=["relevance", "recent"], default="relevance")
+    workflow_parser.add_argument("--target-dir")
+    workflow_parser.add_argument("--name")
+    workflow_parser.add_argument("--skip-pdfs", action="store_true")
+    workflow_parser.add_argument("--no-ingest", action="store_true")
+    workflow_parser.add_argument("--no-synthesize", action="store_true")
+    workflow_parser.add_argument("--topic")
+    workflow_parser.add_argument("--profile", choices=["auto", "general", "sbi_calibration"], default="auto")
+    workflow_parser.add_argument("--skip-forums", action="store_true")
+    workflow_parser.add_argument("--format", choices=["table", "json"], default="table")
 
     source_parser = subparsers.add_parser("source", help="Search a single provider directly.")
     source_parser.add_argument("source", choices=["arxiv", "openalex", "crossref", "semanticscholar", "pubmed", "europepmc", "doaj", "core"])
@@ -535,6 +553,25 @@ def run_search(args: argparse.Namespace) -> None:
         path = save_run("search", payload, summary={"query": query, "mode": args.mode, "sort": args.sort, "result_count": response.result_count})
         print(f"Saved run: {path}", file=sys.stderr)
     print(format_search_response(payload, fmt=args.format, details=args.details))
+
+
+def run_workflow(args: argparse.Namespace) -> None:
+    query = " ".join(args.query).strip()
+    response = ResearchService().research_workflow(
+        query=query,
+        mode=args.mode,
+        limit=args.limit,
+        sort=args.sort,
+        target_dir=args.target_dir,
+        name=args.name,
+        download_pdfs=not args.skip_pdfs,
+        ingest=not args.no_ingest,
+        synthesize=not args.no_synthesize,
+        topic=args.topic,
+        profile=args.profile,
+        include_forums=not args.skip_forums,
+    )
+    print(format_research_workflow_response(response.model_dump(mode="json"), fmt=args.format))
 
 
 def run_source(args: argparse.Namespace) -> None:

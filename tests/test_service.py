@@ -1,7 +1,8 @@
 import time
 
 from research_mcp.errors import ProviderRequestError
-from research_mcp.models import LiteratureResult
+from research_mcp.models import AnalysisSummaryResponse, IngestResponse, LiteratureResult
+from research_mcp.utils import now_utc_iso
 from research_mcp.service import ResearchService
 from research_mcp.settings import Settings
 
@@ -104,3 +105,90 @@ def test_resolve_open_access_reports_configuration_error(tmp_path):
 
     assert response.status == "error"
     assert response.message == "missing UNPAYWALL_EMAIL"
+
+
+def test_research_workflow_collects_library_without_ingest(tmp_path):
+    provider = StubProvider(
+        "OpenAlex",
+        results=[LiteratureResult(title="Workflow Paper", source="OpenAlex", source_id="W1", year=2026)],
+    )
+    service = ResearchService(
+        settings=Settings(RESEARCH_MCP_CACHE_DB_PATH=str(tmp_path / "state.db")),
+        providers={"openalex": provider},
+        oa_resolver=StubResolver(),
+    )
+
+    response = service.research_workflow(
+        query="workflow paper",
+        limit=1,
+        target_dir=str(tmp_path / "workflow-library"),
+        download_pdfs=False,
+        ingest=False,
+        synthesize=True,
+    )
+
+    assert response.status == "partial"
+    assert response.library_id
+    assert response.counts["search_results"] == 1
+    assert response.ingest_status == "skipped"
+    assert response.synthesis_status == "skipped"
+    assert any("ingest=false" in warning for warning in response.warnings)
+    assert any("ingest_library" in action for action in response.next_actions)
+
+
+def test_research_workflow_runs_ingest_and_synthesis_when_ready(tmp_path):
+    provider = StubProvider(
+        "OpenAlex",
+        results=[LiteratureResult(title="Workflow Paper", source="OpenAlex", source_id="W1", year=2026)],
+    )
+    service = ResearchService(
+        settings=Settings(RESEARCH_MCP_CACHE_DB_PATH=str(tmp_path / "state.db")),
+        providers={"openalex": provider},
+        oa_resolver=StubResolver(),
+    )
+
+    def fake_ingest(library_id, include_forums=True, reingest=False):
+        return IngestResponse(
+            status="ok",
+            generated_at=now_utc_iso(),
+            library_id=library_id,
+            mode="hybrid",
+            compute_backend="local",
+            processed_count=1,
+            ready_count=1,
+        )
+
+    def fake_synthesis(library_id, topic, max_items=50, profile="auto"):
+        return AnalysisSummaryResponse(
+            status="ok",
+            generated_at=now_utc_iso(),
+            library_id=library_id,
+            topic=topic,
+            analysis_mode="hybrid",
+            compute_backend="local",
+            title="Workflow synthesis",
+            summary="Synthesis complete.",
+            report_id="report1",
+            report_path=str(tmp_path / "report.md"),
+        )
+
+    service.ingest_library = fake_ingest
+    service.build_research_synthesis = fake_synthesis
+
+    response = service.research_workflow(
+        query="workflow paper",
+        limit=1,
+        target_dir=str(tmp_path / "workflow-ready"),
+        download_pdfs=False,
+        ingest=True,
+        synthesize=True,
+        topic="workflow topic",
+        profile="general",
+    )
+
+    assert response.status == "ok"
+    assert response.ingest_status == "ok"
+    assert response.synthesis_status == "ok"
+    assert response.synthesis_report_id == "report1"
+    assert response.synthesis_summary == "Synthesis complete."
+    assert any("read_synthesis_report" in action for action in response.next_actions)
