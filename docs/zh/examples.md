@@ -23,6 +23,18 @@ scibudy workflow "calibration methods in simulation-based inference" \
   --topic "calibration in simulation-based inference"
 ```
 
+只预览计划步骤，不实际写文件：
+
+```bash
+scibudy workflow "calibration methods in simulation-based inference" --dry-run
+```
+
+低成本执行 search + 建库：
+
+```bash
+scibudy workflow "calibration methods in simulation-based inference" --quality-mode fast
+```
+
 ## 做主题分析
 
 ```bash

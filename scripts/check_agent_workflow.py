@@ -56,6 +56,30 @@ def main() -> None:
         assert response.library_id
         assert response.paths.get("download_checklist_markdown")
         assert any("ingest_library" in action for action in response.next_actions)
+        assert response.metrics["total_elapsed_ms"] >= 0
+
+        dry_run_target = root / "dry-run-library"
+        dry_run = service.research_workflow(
+            query="agent workflow smoke",
+            mode="general",
+            limit=1,
+            target_dir=str(dry_run_target),
+            dry_run=True,
+        )
+        assert dry_run.status == "ok"
+        assert dry_run.workflow_stage == "planned"
+        assert not dry_run_target.exists()
+
+        fast = service.research_workflow(
+            query="agent workflow smoke",
+            mode="general",
+            limit=1,
+            target_dir=str(root / "fast-library"),
+            download_pdfs=False,
+            quality_mode="fast",
+        )
+        assert fast.workflow_stage == "organized"
+        assert fast.ingest_status == "skipped"
         print("agent-workflow-smoke: ok")
 
 

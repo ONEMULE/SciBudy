@@ -372,12 +372,19 @@ class ResearchWorkflowResponse(BaseModel):
     sort: Literal["relevance", "recent"]
     topic: str | None = None
     profile: str = "auto"
+    quality_mode: Literal["fast", "standard", "deep"] = "standard"
+    dry_run: bool = False
+    workflow_stage: str | None = None
     result_count: int = 0
     provider_coverage: list[ProviderCoverage] = Field(default_factory=list)
     library_id: str | None = None
     target_dir: str | None = None
     paths: dict[str, Any] = Field(default_factory=dict)
     counts: dict[str, int] = Field(default_factory=dict)
+    planned_steps: list[str] = Field(default_factory=list)
+    step_results: dict[str, Any] = Field(default_factory=dict)
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    quality_summary: dict[str, Any] = Field(default_factory=dict)
     download_status: str | None = None
     ingest_status: str | None = None
     synthesis_status: str | None = None

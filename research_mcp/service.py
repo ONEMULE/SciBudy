@@ -99,7 +99,10 @@ class ResearchService:
         topic: str | None = None,
         profile: str = "auto",
         include_forums: bool = True,
+        quality_mode: str = "standard",
+        dry_run: bool = False,
     ) -> ResearchWorkflowResponse:
+        workflow_started_at = time.monotonic()
         mode = mode.strip().lower()
         if mode not in MODE_TO_PROVIDERS:
             raise ValueError("mode must be one of: general, preprint, biomed")
@@ -107,10 +110,47 @@ class ResearchService:
         query = _validate_query(query)
         limit = _validate_limit(limit)
         profile = _validate_profile(profile)
+        quality_mode = _validate_quality_mode(quality_mode)
+        if quality_mode == "fast":
+            ingest = False
+            synthesize = False
         synthesis_topic = _validate_query(topic) if topic else query
         warnings: list[str] = []
+        planned_steps = self._workflow_planned_steps(download_pdfs=download_pdfs, ingest=ingest, synthesize=synthesize)
+        planned_target_dir = str(Path(target_dir).expanduser().resolve()) if target_dir else str((APP_HOME / "library" / "library").resolve())
 
+        if dry_run:
+            return ResearchWorkflowResponse(
+                status="ok",
+                generated_at=now_utc_iso(),
+                query=query,
+                mode=mode,  # type: ignore[arg-type]
+                sort=sort,  # type: ignore[arg-type]
+                topic=synthesis_topic,
+                profile=profile,
+                quality_mode=quality_mode,  # type: ignore[arg-type]
+                dry_run=True,
+                workflow_stage="planned",
+                target_dir=planned_target_dir,
+                planned_steps=planned_steps,
+                step_results={
+                    "plan": {
+                        "will_write_files": False,
+                        "target_dir": planned_target_dir,
+                        "mode": mode,
+                        "limit": limit,
+                        "download_pdfs": download_pdfs,
+                        "ingest": ingest,
+                        "synthesize": synthesize,
+                    }
+                },
+                metrics={"total_elapsed_ms": int((time.monotonic() - workflow_started_at) * 1000)},
+                next_actions=["Run the same workflow with dry_run=false to execute the planned steps."],
+            )
+
+        search_started_at = time.monotonic()
         search_response = self.search_literature(query=query, mode=mode, limit=limit, sort=sort)
+        search_elapsed_ms = int((time.monotonic() - search_started_at) * 1000)
         warnings.extend(search_response.warnings)
         if search_response.result_count == 0:
             return ResearchWorkflowResponse(
@@ -121,13 +161,26 @@ class ResearchService:
                 sort=sort,  # type: ignore[arg-type]
                 topic=synthesis_topic,
                 profile=profile,
+                quality_mode=quality_mode,  # type: ignore[arg-type]
+                workflow_stage="search",
                 result_count=0,
                 provider_coverage=search_response.provider_coverage,
+                planned_steps=planned_steps,
+                step_results={"search": {"status": "error", "result_count": 0}},
+                metrics=self._workflow_metrics(
+                    started_at=workflow_started_at,
+                    search_elapsed_ms=search_elapsed_ms,
+                    provider_coverage=search_response.provider_coverage,
+                    result_count=0,
+                    downloaded_count=0,
+                    ingest_ready_count=0,
+                ),
                 warnings=warnings or ["search returned no results"],
                 next_actions=["Try a broader query or use search_source for targeted provider debugging."],
             )
 
         results = response_to_results(search_response)
+        organize_started_at = time.monotonic()
         library_response = self.library.organize_library(
             results=results,
             target_dir=target_dir,
@@ -136,25 +189,32 @@ class ResearchService:
             source_ref=query,
             download_pdfs=download_pdfs,
         )
+        organize_elapsed_ms = int((time.monotonic() - organize_started_at) * 1000)
         library_id = self._register_library(library_response, results, name=name)
         library_response.library_id = library_id
         warnings.extend(library_response.warnings)
 
         ingest_response: IngestResponse | None = None
         synthesis_response: AnalysisSummaryResponse | None = None
+        ingest_elapsed_ms = 0
+        synthesis_elapsed_ms = 0
         if ingest:
+            ingest_started_at = time.monotonic()
             ingest_response = self.ingest_library(library_id, include_forums=include_forums, reingest=False)
+            ingest_elapsed_ms = int((time.monotonic() - ingest_started_at) * 1000)
             warnings.extend(ingest_response.warnings)
         elif synthesize:
             warnings.append("synthesis skipped because ingest=false")
 
         if synthesize and ingest_response and ingest_response.ready_count > 0:
+            synthesis_started_at = time.monotonic()
             synthesis_response = self.build_research_synthesis(
                 library_id,
                 synthesis_topic,
                 max_items=limit,
                 profile=profile,
             )
+            synthesis_elapsed_ms = int((time.monotonic() - synthesis_started_at) * 1000)
             warnings.extend(synthesis_response.warnings)
         elif synthesize and ingest_response and ingest_response.ready_count == 0:
             warnings.append("synthesis skipped because no ingested items are ready")
@@ -167,6 +227,7 @@ class ResearchService:
             requested_ingest=ingest,
             requested_synthesis=synthesize,
         )
+        quality_summary = self._workflow_quality_summary(synthesis_response, synthesize=synthesize, ingest_response=ingest_response, quality_mode=quality_mode)
         return ResearchWorkflowResponse(
             status=status,  # type: ignore[arg-type]
             generated_at=now_utc_iso(),
@@ -175,6 +236,8 @@ class ResearchService:
             sort=sort,  # type: ignore[arg-type]
             topic=synthesis_topic,
             profile=profile,
+            quality_mode=quality_mode,  # type: ignore[arg-type]
+            workflow_stage=self._workflow_stage(library_response, ingest_response, synthesis_response, ingest, synthesize),
             result_count=search_response.result_count,
             provider_coverage=search_response.provider_coverage,
             library_id=library_id,
@@ -194,6 +257,20 @@ class ResearchService:
                 "ingest_processed": ingest_response.processed_count if ingest_response else 0,
                 "ingest_ready": ingest_response.ready_count if ingest_response else 0,
             },
+            planned_steps=planned_steps,
+            step_results=self._workflow_step_results(search_response, library_response, ingest_response, synthesis_response),
+            metrics=self._workflow_metrics(
+                started_at=workflow_started_at,
+                search_elapsed_ms=search_elapsed_ms,
+                organize_elapsed_ms=organize_elapsed_ms,
+                ingest_elapsed_ms=ingest_elapsed_ms,
+                synthesis_elapsed_ms=synthesis_elapsed_ms,
+                provider_coverage=search_response.provider_coverage,
+                result_count=search_response.result_count,
+                downloaded_count=library_response.downloaded_count,
+                ingest_ready_count=ingest_response.ready_count if ingest_response else 0,
+            ),
+            quality_summary=quality_summary,
             download_status=library_response.status,
             ingest_status=ingest_response.status if ingest_response else ("skipped" if not ingest else None),
             synthesis_status=synthesis_response.status if synthesis_response else ("skipped" if synthesize else None),
@@ -201,7 +278,7 @@ class ResearchService:
             synthesis_report_path=synthesis_response.report_path if synthesis_response else None,
             synthesis_summary=synthesis_response.summary if synthesis_response else None,
             warnings=list(dict.fromkeys(warnings)),
-            next_actions=self._workflow_next_actions(library_id, library_response, ingest_response, synthesis_response, ingest, synthesize),
+            next_actions=self._workflow_next_actions(library_id, library_response, ingest_response, synthesis_response, ingest, synthesize, quality_summary),
         )
 
     def search_source(self, source: str, query: str, limit: int = 10, sort: str = "relevance") -> SearchResponse:
@@ -729,6 +806,7 @@ class ResearchService:
         synthesis_response: AnalysisSummaryResponse | None,
         requested_ingest: bool,
         requested_synthesis: bool,
+        quality_summary: dict[str, Any] | None = None,
     ) -> list[str]:
         actions = [f"Use read_library with library_id={library_id} to inspect the organized library."]
         if library_response.downloaded_count < library_response.requested_count:
@@ -739,9 +817,124 @@ class ResearchService:
             actions.append(f"Use search_library_evidence with library_id={library_id} for targeted evidence questions.")
         if requested_synthesis and synthesis_response and synthesis_response.report_id:
             actions.append(f"Use read_synthesis_report with report_id={synthesis_response.report_id}.")
+            if quality_summary and quality_summary.get("recommended_next_action"):
+                actions.append(str(quality_summary["recommended_next_action"]))
         elif not requested_synthesis and (ingest_response is None or ingest_response.ready_count > 0):
             actions.append(f"Use build_research_synthesis with library_id={library_id} when ready.")
         return actions
+
+    def _workflow_planned_steps(self, *, download_pdfs: bool, ingest: bool, synthesize: bool) -> list[str]:
+        steps = ["search", "organize"]
+        if download_pdfs:
+            steps.append("download")
+        if ingest:
+            steps.append("ingest")
+        if synthesize:
+            steps.append("synthesize")
+        return steps
+
+    def _workflow_stage(
+        self,
+        library_response: OrganizeLibraryResponse,
+        ingest_response: IngestResponse | None,
+        synthesis_response: AnalysisSummaryResponse | None,
+        requested_ingest: bool,
+        requested_synthesis: bool,
+    ) -> str:
+        if synthesis_response:
+            return "synthesized"
+        if requested_synthesis and ingest_response:
+            return "ingested"
+        if requested_ingest and ingest_response:
+            return "ingested"
+        if library_response.library_id:
+            return "organized"
+        return "searched"
+
+    def _workflow_step_results(
+        self,
+        search_response: SearchResponse,
+        library_response: OrganizeLibraryResponse,
+        ingest_response: IngestResponse | None,
+        synthesis_response: AnalysisSummaryResponse | None,
+    ) -> dict[str, Any]:
+        results: dict[str, Any] = {
+            "search": {"status": "ok" if search_response.result_count else "error", "result_count": search_response.result_count},
+            "organize": {"status": library_response.status, "library_id": library_response.library_id, "target_dir": library_response.target_dir},
+            "download": {"status": library_response.status, "downloaded": library_response.downloaded_count, "requested": library_response.requested_count},
+        }
+        if ingest_response:
+            results["ingest"] = {"status": ingest_response.status, "ready_count": ingest_response.ready_count, "processed_count": ingest_response.processed_count}
+        else:
+            results["ingest"] = {"status": "skipped"}
+        if synthesis_response:
+            results["synthesize"] = {"status": synthesis_response.status, "report_id": synthesis_response.report_id, "report_path": synthesis_response.report_path}
+        else:
+            results["synthesize"] = {"status": "skipped"}
+        return results
+
+    def _workflow_metrics(
+        self,
+        *,
+        started_at: float,
+        provider_coverage: list[ProviderCoverage],
+        result_count: int,
+        downloaded_count: int,
+        ingest_ready_count: int,
+        search_elapsed_ms: int = 0,
+        organize_elapsed_ms: int = 0,
+        ingest_elapsed_ms: int = 0,
+        synthesis_elapsed_ms: int = 0,
+    ) -> dict[str, int]:
+        provider_error_count = sum(1 for item in provider_coverage if item.status == "error")
+        provider_timeout_count = sum(1 for item in provider_coverage if item.message and "timed out" in item.message.lower())
+        return {
+            "total_elapsed_ms": int((time.monotonic() - started_at) * 1000),
+            "search_elapsed_ms": search_elapsed_ms,
+            "organize_elapsed_ms": organize_elapsed_ms,
+            "ingest_elapsed_ms": ingest_elapsed_ms,
+            "synthesis_elapsed_ms": synthesis_elapsed_ms,
+            "provider_error_count": provider_error_count,
+            "provider_timeout_count": provider_timeout_count,
+            "result_count": result_count,
+            "downloaded_count": downloaded_count,
+            "ingest_ready_count": ingest_ready_count,
+        }
+
+    def _workflow_quality_summary(
+        self,
+        synthesis_response: AnalysisSummaryResponse | None,
+        *,
+        synthesize: bool,
+        ingest_response: IngestResponse | None,
+        quality_mode: str,
+    ) -> dict[str, Any]:
+        if not synthesize:
+            return {"status": "skipped", "reason": "synthesize=false", "recommended_next_action": "Use build_research_synthesis when synthesis is needed."}
+        if not synthesis_response:
+            reason = "no ready ingested items" if ingest_response and ingest_response.ready_count == 0 else "synthesis not run"
+            return {"status": "skipped", "reason": reason, "recommended_next_action": "Review manual download checklist, then run ingest_library."}
+        payload = synthesis_response.structured_payload or {}
+        unsupported = payload.get("unsupported_claims") or []
+        missing = payload.get("missing_fulltext") or []
+        coverage = payload.get("evidence_coverage") or {}
+        manual_review = bool(payload.get("manual_review_needed"))
+        recommended = "Use read_synthesis_report to inspect evidence-linked synthesis."
+        if missing:
+            recommended = "Prioritize missing PDFs/full text, then re-run ingest_library and build_research_synthesis."
+        elif unsupported:
+            recommended = "Review unsupported claims before using the synthesis as evidence."
+        elif quality_mode == "deep" and manual_review:
+            recommended = "Run targeted search_library_evidence for low-confidence claims."
+        return {
+            "status": synthesis_response.status,
+            "confidence": payload.get("confidence"),
+            "evidence_coverage": coverage,
+            "unsupported_claim_count": len(unsupported),
+            "missing_fulltext_count": len(missing),
+            "manual_review_needed": manual_review,
+            "recommended_next_action": recommended,
+        }
 
 
 def _validate_query(query: str) -> str:
@@ -766,6 +959,13 @@ def _validate_profile(profile: str) -> str:
     normalized = (profile or "auto").strip().lower()
     if normalized not in set(profile_choices()):
         raise ValueError(f"profile must be one of: {', '.join(profile_choices())}")
+    return normalized
+
+
+def _validate_quality_mode(quality_mode: str) -> str:
+    normalized = (quality_mode or "standard").strip().lower()
+    if normalized not in {"fast", "standard", "deep"}:
+        raise ValueError("quality_mode must be one of: fast, standard, deep")
     return normalized
 
 
