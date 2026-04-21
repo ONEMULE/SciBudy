@@ -70,7 +70,7 @@ def search_literature(query: str, mode: str = "general", limit: int = 10, sort: 
 
 
 @app.tool(
-    description="Agent-first research workflow: search, organize a library, optionally download PDFs, ingest full text, and build a synthesis report. Best default entrypoint for Codex agents.",
+    description="Agent-first research workflow. Use dry_run for safe previews, quality_mode=fast for low-cost search+library setup, and standard/deep for ingest+synthesis.",
     structured_output=True,
     annotations=MUTATING_TOOL,
 )
@@ -87,6 +87,8 @@ def research_workflow(
     topic: str | None = None,
     profile: str = "auto",
     include_forums: bool = True,
+    quality_mode: str = "standard",
+    dry_run: bool = False,
 ) -> ResearchWorkflowResponse:
     return get_service().research_workflow(
         query=query,
@@ -101,6 +103,8 @@ def research_workflow(
         topic=topic,
         profile=profile,
         include_forums=include_forums,
+        quality_mode=quality_mode,
+        dry_run=dry_run,
     )
 
 

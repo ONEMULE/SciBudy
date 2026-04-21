@@ -134,6 +134,63 @@ def test_research_workflow_collects_library_without_ingest(tmp_path):
     assert response.synthesis_status == "skipped"
     assert any("ingest=false" in warning for warning in response.warnings)
     assert any("ingest_library" in action for action in response.next_actions)
+    assert response.workflow_stage == "organized"
+    assert response.metrics["total_elapsed_ms"] >= 0
+    assert response.step_results["search"]["result_count"] == 1
+
+
+def test_research_workflow_dry_run_has_no_side_effects(tmp_path):
+    provider = StubProvider(
+        "OpenAlex",
+        results=[LiteratureResult(title="Workflow Paper", source="OpenAlex", source_id="W1", year=2026)],
+    )
+    service = ResearchService(
+        settings=Settings(RESEARCH_MCP_CACHE_DB_PATH=str(tmp_path / "state.db")),
+        providers={"openalex": provider},
+        oa_resolver=StubResolver(),
+    )
+    target_dir = tmp_path / "dry-run-library"
+
+    response = service.research_workflow(
+        query="workflow paper",
+        limit=1,
+        target_dir=str(target_dir),
+        dry_run=True,
+    )
+
+    assert response.status == "ok"
+    assert response.dry_run is True
+    assert response.workflow_stage == "planned"
+    assert response.planned_steps == ["search", "organize", "download", "ingest", "synthesize"]
+    assert not target_dir.exists()
+    assert response.step_results["plan"]["will_write_files"] is False
+
+
+def test_research_workflow_fast_mode_skips_ingest_and_synthesis(tmp_path):
+    provider = StubProvider(
+        "OpenAlex",
+        results=[LiteratureResult(title="Workflow Paper", source="OpenAlex", source_id="W1", year=2026)],
+    )
+    service = ResearchService(
+        settings=Settings(RESEARCH_MCP_CACHE_DB_PATH=str(tmp_path / "state.db")),
+        providers={"openalex": provider},
+        oa_resolver=StubResolver(),
+    )
+
+    response = service.research_workflow(
+        query="workflow paper",
+        limit=1,
+        target_dir=str(tmp_path / "fast-library"),
+        download_pdfs=False,
+        quality_mode="fast",
+    )
+
+    assert response.status == "ok"
+    assert response.quality_mode == "fast"
+    assert response.ingest_status == "skipped"
+    assert response.synthesis_status is None
+    assert response.workflow_stage == "organized"
+    assert response.planned_steps == ["search", "organize"]
 
 
 def test_research_workflow_runs_ingest_and_synthesis_when_ready(tmp_path):
@@ -191,4 +248,8 @@ def test_research_workflow_runs_ingest_and_synthesis_when_ready(tmp_path):
     assert response.synthesis_status == "ok"
     assert response.synthesis_report_id == "report1"
     assert response.synthesis_summary == "Synthesis complete."
+    assert response.workflow_stage == "synthesized"
+    assert response.step_results["synthesize"]["report_id"] == "report1"
+    assert response.metrics["synthesis_elapsed_ms"] >= 0
+    assert response.quality_summary["status"] == "ok"
     assert any("read_synthesis_report" in action for action in response.next_actions)

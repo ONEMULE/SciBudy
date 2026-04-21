@@ -229,6 +229,8 @@ def build_parser() -> argparse.ArgumentParser:
     workflow_parser.add_argument("--topic")
     workflow_parser.add_argument("--profile", choices=["auto", "general", "sbi_calibration"], default="auto")
     workflow_parser.add_argument("--skip-forums", action="store_true")
+    workflow_parser.add_argument("--quality-mode", choices=["fast", "standard", "deep"], default="standard")
+    workflow_parser.add_argument("--dry-run", action="store_true")
     workflow_parser.add_argument("--format", choices=["table", "json"], default="table")
 
     source_parser = subparsers.add_parser("source", help="Search a single provider directly.")
@@ -570,6 +572,8 @@ def run_workflow(args: argparse.Namespace) -> None:
         topic=args.topic,
         profile=args.profile,
         include_forums=not args.skip_forums,
+        quality_mode=args.quality_mode,
+        dry_run=args.dry_run,
     )
     print(format_research_workflow_response(response.model_dump(mode="json"), fmt=args.format))
 

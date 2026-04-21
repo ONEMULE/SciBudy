@@ -95,6 +95,8 @@ scibudy ingest-library <library_id>
 scibudy search-evidence <library_id> calibration
 scibudy profiles
 scibudy workflow "calibration methods in simulation-based inference" --limit 50 --topic "calibration in simulation-based inference"
+scibudy workflow "calibration methods in simulation-based inference" --dry-run
+scibudy workflow "calibration methods in simulation-based inference" --quality-mode fast
 scibudy synthesize-library <library_id> "causal inference robustness" --profile general
 scibudy synthesize-library <library_id> "calibration in simulation-based inference" --profile sbi_calibration
 scibudy ui --open
@@ -107,6 +109,8 @@ Use research/research_workflow with query="calibration methods in simulation-bas
 ```
 
 Use lower-level tools such as `search_literature`, `collect_library`, `ingest_library`, and `build_research_synthesis` when you need manual control over each step.
+
+Use `dry_run=true` when an agent should preview writes and planned steps before executing. Use `quality_mode=fast` for low-cost exploration, `standard` for the normal workflow, and `deep` when missing full text or unsupported claims require stricter follow-up.
 
 ## Domain profiles
 

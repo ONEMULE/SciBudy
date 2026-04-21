@@ -23,6 +23,18 @@ scibudy workflow "calibration methods in simulation-based inference" \
   --topic "calibration in simulation-based inference"
 ```
 
+Preview the planned writes without executing:
+
+```bash
+scibudy workflow "calibration methods in simulation-based inference" --dry-run
+```
+
+Run a low-cost search and library setup pass:
+
+```bash
+scibudy workflow "calibration methods in simulation-based inference" --quality-mode fast
+```
+
 ## Analyze a topic
 
 ```bash

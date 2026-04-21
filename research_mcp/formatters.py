@@ -95,8 +95,11 @@ def format_research_workflow_response(payload: dict[str, Any], *, fmt: str = "ta
         return json.dumps(payload, indent=2, ensure_ascii=False)
     lines = [
         f"status: {payload.get('status', '')}",
+        f"stage: {payload.get('workflow_stage', '')}",
         f"query: {payload.get('query', '')}",
         f"mode: {payload.get('mode', '')}",
+        f"quality_mode: {payload.get('quality_mode', '')}",
+        f"dry_run: {payload.get('dry_run', False)}",
         f"library_id: {payload.get('library_id', '')}",
         f"target_dir: {payload.get('target_dir', '')}",
         f"results: {payload.get('result_count', 0)}",
@@ -110,6 +113,17 @@ def format_research_workflow_response(payload: dict[str, Any], *, fmt: str = "ta
         lines.append(f"synthesis_report_path: {payload['synthesis_report_path']}")
     if payload.get("synthesis_summary"):
         lines.extend(["", payload["synthesis_summary"]])
+    quality = payload.get("quality_summary") or {}
+    if quality:
+        lines.extend(["", "quality_summary:"])
+        if quality.get("confidence") is not None:
+            lines.append(f"- confidence: {quality.get('confidence')}")
+        if quality.get("missing_fulltext_count") is not None:
+            lines.append(f"- missing_fulltext_count: {quality.get('missing_fulltext_count')}")
+        if quality.get("unsupported_claim_count") is not None:
+            lines.append(f"- unsupported_claim_count: {quality.get('unsupported_claim_count')}")
+        if quality.get("recommended_next_action"):
+            lines.append(f"- recommended_next_action: {quality.get('recommended_next_action')}")
     warnings = payload.get("warnings") or []
     if warnings:
         lines.extend(["", "warnings:"])
