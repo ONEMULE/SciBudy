@@ -18,6 +18,7 @@ from research_mcp.formatters import (
     format_analysis_summary_response,
     format_ingest_response,
     format_journal_style_analysis_response,
+    format_journal_text_standardization_response,
     format_context_bundle_response,
     format_diagnostic_response,
     format_download_batch_response,
@@ -117,6 +118,8 @@ def dispatch(args: argparse.Namespace) -> None:
         run_collect(args)
     elif args.command == "journal-analyze":
         run_journal_analyze(args)
+    elif args.command == "journal-standardize":
+        run_journal_standardize(args)
     elif args.command == "providers":
         run_providers(args)
     elif args.command == "runs":
@@ -297,6 +300,18 @@ def build_parser() -> argparse.ArgumentParser:
     journal_parser.add_argument("--pdf-report", action="store_true")
     journal_parser.add_argument("--dry-run", action="store_true")
     journal_parser.add_argument("--format", choices=["table", "json"], default="table")
+
+    standardize_parser = subparsers.add_parser("journal-standardize", help="Audit and optionally standardize text against a journal style corpus.")
+    standardize_parser.add_argument("--corpus-dir", required=True)
+    standardize_parser.add_argument("--input", dest="input_path", required=True)
+    standardize_parser.add_argument("--output-dir")
+    standardize_parser.add_argument("--allowed-term", action="append", default=[])
+    standardize_parser.add_argument("--replacement-map")
+    standardize_parser.add_argument("--apply", action="store_true")
+    standardize_parser.add_argument("--plain-text", dest="latex_mode", action="store_false", default=True)
+    standardize_parser.add_argument("--keep-title", dest="drop_title", action="store_false", default=True)
+    standardize_parser.add_argument("--dry-run", action="store_true")
+    standardize_parser.add_argument("--format", choices=["table", "json"], default="table")
 
     providers_parser = subparsers.add_parser("providers", help="Show provider readiness and missing credentials.")
     providers_parser.add_argument("--format", choices=["table", "json"], default="table")
@@ -676,6 +691,21 @@ def run_journal_analyze(args: argparse.Namespace) -> None:
         dry_run=args.dry_run,
     )
     print(format_journal_style_analysis_response(response.model_dump(mode="json"), fmt=args.format))
+
+
+def run_journal_standardize(args: argparse.Namespace) -> None:
+    response = ResearchService().standardize_journal_text(
+        corpus_dir=args.corpus_dir,
+        input_path=args.input_path,
+        output_dir=args.output_dir,
+        allowed_terms=args.allowed_term,
+        replacement_map=args.replacement_map,
+        apply=args.apply,
+        latex_mode=args.latex_mode,
+        drop_title=args.drop_title,
+        dry_run=args.dry_run,
+    )
+    print(format_journal_text_standardization_response(response.model_dump(mode="json"), fmt=args.format))
 
 
 def run_providers(args: argparse.Namespace) -> None:

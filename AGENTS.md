@@ -14,7 +14,7 @@ python3 -m venv .venv
 python -m pip install -e .[dev]
 ```
 
-Use `make test` to run `pytest -q`, `make build-ui` to build the Vite UI, `make package-check` to validate the npm installer package, and `make release-check` before release-sensitive changes. Build docs with `make build-docs`. For the Pages health check, use `python scripts/check_site.py --base-url https://onemule.github.io/SciBudy/`.
+Run `make verify-local` for ordinary changes; it covers tests, the Vite UI build, strict docs build, npm package validation, and release/config consistency checks. For Pages, installer, or release metadata changes, run `make verify-full` so the live Pages health check also runs against `https://onemule.github.io/SciBudy/`. Use individual targets such as `make test`, `make build-ui`, `make build-docs`, `make package-check`, and `make release-check` when narrowing a failure.
 
 ## Coding Style & Naming Conventions
 

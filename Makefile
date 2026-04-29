@@ -2,7 +2,7 @@ PYTHON ?= python3
 VENV_PYTHON ?= .venv/bin/python
 NPM ?= npm
 
-.PHONY: test build-ui build-docs site-health package-check build-python bootstrap-smoke release-check
+.PHONY: test build-ui build-docs site-health package-check build-python bootstrap-smoke release-check verify-local verify-full
 
 test:
 	$(VENV_PYTHON) -m pytest -q
@@ -28,3 +28,7 @@ bootstrap-smoke:
 
 release-check:
 	$(VENV_PYTHON) scripts/release_check.py
+
+verify-local: test build-ui build-docs package-check release-check
+
+verify-full: verify-local site-health

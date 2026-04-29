@@ -9,10 +9,14 @@
 ## Common commands
 
 ```bash
-make test
-make build-ui
-make package-check
-make release-check
+make verify-local
+```
+
+Run `make verify-local` for ordinary changes. For Pages, installer, package
+metadata, or release manifest changes, run:
+
+```bash
+make verify-full
 ```
 
 ## Development principles

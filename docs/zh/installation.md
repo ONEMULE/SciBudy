@@ -33,7 +33,7 @@ npx scibudy-install --profile base
 scibudy doctor --json
 ```
 
-安装器会根据 release manifest 安装 `scibudy==0.3.0`，同步浏览器 UI，并把运行状态放在 app home 下。它不会把生成的文献库或密钥写入源码目录。
+安装器会根据 release manifest 安装 `scibudy==0.3.1`，同步浏览器 UI，并把运行状态放在 app home 下。它不会把生成的文献库或密钥写入源码目录。
 
 Profiles：
 

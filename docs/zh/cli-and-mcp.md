@@ -17,7 +17,7 @@ Scibudy 通过两个入口提供同一套科研能力：
 | 全文分析 | `ingest-library`, `ingest-item`, `summarize-library`, `summarize-item`, `compare-items`, `analyze-topic`, `search-evidence` |
 | 综合分析 | `workflow`, `synthesize-library`, `profiles`, `analysis-reports`, `analysis-report-show` |
 | Context 与 UI | `bundle-create`, `bundle-show`, `ui` |
-| 期刊文风 | `journal-analyze` |
+| 期刊文风 | `journal-analyze`, `journal-standardize` |
 | 本地模型 | `install-local-models`, `warm-local-models`, `uninstall-local-models`, `analysis-settings`, `analysis-update` |
 
 ## 常用 CLI 示例
@@ -32,6 +32,7 @@ scibudy ingest-library <library_id>
 scibudy search-evidence <library_id> "coverage diagnostics"
 scibudy synthesize-library <library_id> "simulation-based calibration" --profile auto
 scibudy journal-analyze --journal nature-communications --query "atmospheric chemistry Bayesian inference" --target-dir ./nc-style
+scibudy journal-standardize --corpus-dir ./nc-style --input ./manuscript.tex
 scibudy ui --open
 ```
 
@@ -47,7 +48,7 @@ scibudy ui --open
 | Ingestion 与证据 | `ingest_library`, `ingest_library_item`, `search_library_evidence` | 需要在解析后的全文中搜索。 |
 | 总结与综合 | `summarize_library`, `summarize_library_item`, `compare_library_items`, `analyze_library_topic`, `build_research_synthesis`, `list_domain_profiles` | 需要结构化笔记或跨论文综合。 |
 | 报告与 context | `list_analysis_reports`, `read_analysis_report`, `read_synthesis_report`, `generate_context_bundle`, `read_context_bundle` | 需要可复用的对话或写作上下文。 |
-| 期刊文风 | `analyze_journal_style` | 需要目标期刊的语料化写作风格诊断。 |
+| 期刊文风 | `analyze_journal_style`, `standardize_journal_text` | 需要目标期刊的语料化写作风格诊断或词表标准化审计。 |
 | 运行时诊断 | `health_check`, `security_check`, `get_analysis_settings`, `update_analysis_settings` | 需要检查准备状态、安全性或后端设置。 |
 | UI | `render_library_manager` | 需要浏览器或 ChatGPT Apps 文献库管理界面。 |
 
@@ -62,6 +63,7 @@ scibudy ui --open
 | `scibudy search-evidence` | `search_library_evidence` |
 | `scibudy synthesize-library` | `build_research_synthesis` |
 | `scibudy journal-analyze` | `analyze_journal_style` |
+| `scibudy journal-standardize` | `standardize_journal_text` |
 | `scibudy doctor` | `health_check` |
 | `scibudy security-audit` | `security_check` |
 

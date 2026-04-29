@@ -35,10 +35,12 @@ cd ..
 ### 3. Core checks
 
 ```bash
-make test
-make build-ui
-make package-check
+make verify-local
 ```
+
+Use `make verify-local` for ordinary changes. For Pages, installer, package
+metadata, or release manifest changes, run `make verify-full` so the live Pages
+health check is included.
 
 ## Contribution guidelines
 
