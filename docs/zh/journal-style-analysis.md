@@ -70,7 +70,8 @@ scibudy journal-analyze --journal nature-communications --target-dir ./nc-style 
 2. 使用贴近当前论文的 topic query，不要直接分析整个期刊。
 3. 检查 `corpus_manifest.csv`，排除解析失败或明显无关的文章。
 4. 把 Markdown 报告当作风格参考，不要当作可复制文本。
-5. 修改稿件前，对照目标期刊官方 author instructions。
+5. 需要对已有文本做词表审计时，继续使用 `journal-standardize`。
+6. 修改稿件前，对照目标期刊官方 author instructions。
 
 ## 内置期刊
 

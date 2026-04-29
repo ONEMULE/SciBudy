@@ -45,6 +45,9 @@ jobs:
       - name: npm pack dry run
         run: npm pack --dry-run
 
+      - name: Release/config consistency
+        run: python scripts/release_check.py
+
   compatibility:
     strategy:
       fail-fast: false

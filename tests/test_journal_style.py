@@ -2,7 +2,9 @@ import json
 
 import httpx
 
+from research_mcp.cli import build_parser, dispatch
 from research_mcp.journal_style import JournalStyleAnalyzer
+from research_mcp.journal_style import JournalTextStandardizer
 from research_mcp.settings import Settings
 
 
@@ -119,3 +121,100 @@ def test_journal_style_cached_manifest_reanalysis(tmp_path):
     assert second.article_count == 1
     metrics = json.loads((tmp_path / "corpus" / "analysis" / "summary_metrics.json").read_text())
     assert metrics["article_count"] == 1
+
+
+def make_standardization_corpus(tmp_path):
+    corpus = tmp_path / "journal-corpus"
+    (corpus / "text").mkdir(parents=True)
+    (corpus / "text" / "article-1.txt").write_text(
+        "Atmospheric observations show model bias. The analysis uses simulations and evidence from measurements.",
+        encoding="utf-8",
+    )
+    (corpus / "text" / "article-2.txt").write_text(
+        "These results indicate that posterior estimates constrain chemistry and reduce uncertainty.",
+        encoding="utf-8",
+    )
+    return corpus
+
+
+def test_journal_standardizer_dry_run_has_no_side_effects(tmp_path):
+    corpus = make_standardization_corpus(tmp_path)
+    manuscript = tmp_path / "draft.tex"
+    manuscript.write_text(
+        "\\title{A title with inventedword}\n"
+        "The analysis uses simulations and customword.",
+        encoding="utf-8",
+    )
+
+    response = JournalTextStandardizer().standardize(
+        corpus_dir=str(corpus),
+        input_path=str(manuscript),
+        dry_run=True,
+    )
+
+    assert response.dry_run is True
+    assert response.oov_unique_count == 1
+    assert not (corpus / "standardization").exists()
+
+
+def test_journal_standardizer_writes_audit_and_allowed_terms(tmp_path):
+    corpus = make_standardization_corpus(tmp_path)
+    manuscript = tmp_path / "draft.tex"
+    manuscript.write_text("The analysis uses DSMACC and customword.", encoding="utf-8")
+
+    response = JournalTextStandardizer().standardize(
+        corpus_dir=str(corpus),
+        input_path=str(manuscript),
+        allowed_terms=["customword"],
+    )
+
+    assert response.status == "ok"
+    assert response.oov_unique_count == 0
+    assert (corpus / "standardization" / "draft" / "journal_vocabulary.csv").exists()
+    assert (corpus / "standardization" / "draft" / "oov_report.csv").read_text(encoding="utf-8").strip() == "status"
+
+
+def test_journal_standardizer_applies_replacement_map_to_copy(tmp_path):
+    corpus = make_standardization_corpus(tmp_path)
+    manuscript = tmp_path / "draft.txt"
+    manuscript.write_text("customword", encoding="utf-8")
+    replacements = tmp_path / "replacements.csv"
+    replacements.write_text("word,replacement\ncustomword,analysis\n", encoding="utf-8")
+
+    response = JournalTextStandardizer().standardize(
+        corpus_dir=str(corpus),
+        input_path=str(manuscript),
+        replacement_map=str(replacements),
+        apply=True,
+        latex_mode=False,
+    )
+
+    standardized = corpus / "standardization" / "draft" / "standardized.txt"
+    assert response.applied is True
+    assert standardized.exists()
+    assert "analysis" in standardized.read_text(encoding="utf-8")
+    assert "customword" in manuscript.read_text(encoding="utf-8")
+
+
+def test_journal_standardize_cli_json(tmp_path, capsys):
+    corpus = make_standardization_corpus(tmp_path)
+    manuscript = tmp_path / "draft.txt"
+    manuscript.write_text("The analysis uses simulations.", encoding="utf-8")
+
+    args = build_parser().parse_args(
+        [
+            "journal-standardize",
+            "--corpus-dir",
+            str(corpus),
+            "--input",
+            str(manuscript),
+            "--plain-text",
+            "--format",
+            "json",
+        ]
+    )
+    dispatch(args)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ok"
+    assert payload["oov_unique_count"] == 0

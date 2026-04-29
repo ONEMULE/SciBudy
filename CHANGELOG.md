@@ -8,6 +8,19 @@ The project follows a pragmatic `v0.x` stability model:
 - breaking changes may still happen when they materially improve architecture or install reliability
 - release notes must call out any breaking change explicitly
 
+## [0.3.1] - 2026-04-29
+
+### Added
+- `journal-standardize` CLI and `standardize_journal_text` MCP tool for auditing existing text against a collected journal corpus.
+- Corpus-derived vocabulary, bigram, trigram, allowed-term, OOV, replacement-suggestion, and summary outputs for journal text standardization.
+- Bilingual documentation for the journal text standardization flow.
+
+### Changed
+- Journal style documentation now links the `journal-analyze` corpus-building step to the new standardization audit step.
+
+### Validation
+- Added deterministic tests for dry-run behavior, allowed-term handling, replacement-map application, and CLI JSON output.
+
 ## [0.3.0] - 2026-04-29
 
 ### Added

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scibudy"
-version = "0.3.0"
+version = "0.3.1"
 description = "Codex-native scientific research assistant for scholarly search, library management, full-text analysis, and local semantic retrieval"
 readme = "README.md"
 requires-python = ">=3.10"

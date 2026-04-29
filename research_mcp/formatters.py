@@ -224,6 +224,40 @@ def format_journal_style_analysis_response(payload: dict[str, Any], *, fmt: str 
     return "\n".join(lines)
 
 
+def format_journal_text_standardization_response(payload: dict[str, Any], *, fmt: str = "table") -> str:
+    if fmt == "json":
+        return json.dumps(payload, indent=2, ensure_ascii=False)
+    lines = [
+        f"status: {payload.get('status', '')}",
+        f"corpus_dir: {payload.get('corpus_dir', '')}",
+        f"input_path: {payload.get('input_path', '')}",
+        f"output_dir: {payload.get('output_dir', '')}",
+        f"dry_run: {payload.get('dry_run', False)}",
+        f"applied: {payload.get('applied', False)}",
+        f"corpus_document_count: {payload.get('corpus_document_count', 0)}",
+        f"vocabulary_size: {payload.get('vocabulary_size', 0)}",
+        f"oov_unique_count: {payload.get('oov_unique_count', 0)}",
+        f"oov_total_count: {payload.get('oov_total_count', 0)}",
+        f"allowed_term_count: {payload.get('allowed_term_count', 0)}",
+        f"replacement_count: {payload.get('replacement_count', 0)}",
+    ]
+    paths = payload.get("paths") or {}
+    if paths:
+        lines.extend(["", "paths:"])
+        for key in ["vocabulary", "oov_report", "replacement_suggestions", "summary", "readme", "standardized_text"]:
+            if paths.get(key):
+                lines.append(f"- {key}: {paths[key]}")
+    warnings = payload.get("warnings") or []
+    if warnings:
+        lines.extend(["", "warnings:"])
+        lines.extend(f"- {warning}" for warning in warnings[:12])
+    next_actions = payload.get("next_actions") or []
+    if next_actions:
+        lines.extend(["", "next_actions:"])
+        lines.extend(f"- {action}" for action in next_actions)
+    return "\n".join(lines)
+
+
 def format_provider_statuses(payload: dict[str, Any], *, fmt: str = "table") -> str:
     if fmt == "json":
         return json.dumps(payload, indent=2, ensure_ascii=False)

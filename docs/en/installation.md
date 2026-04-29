@@ -33,7 +33,7 @@ npx scibudy-install --profile base
 scibudy doctor --json
 ```
 
-The installer uses the release manifest to install `scibudy==0.3.0`, sync the browser UI, and set up runtime state under the app home. It does not write generated libraries or secrets into the source checkout.
+The installer uses the release manifest to install `scibudy==0.3.1`, sync the browser UI, and set up runtime state under the app home. It does not write generated libraries or secrets into the source checkout.
 
 Profiles:
 

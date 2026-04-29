@@ -21,6 +21,7 @@ from research_mcp.models import (
     HealthCheckResponse,
     IngestResponse,
     JournalStyleAnalysisResponse,
+    JournalTextStandardizationResponse,
     LibrariesResponse,
     LibraryDetailResponse,
     LibraryMutationResponse,
@@ -229,6 +230,35 @@ def analyze_journal_style(
         refresh=refresh,
         skip_pdfs=skip_pdfs,
         pdf_report=pdf_report,
+        dry_run=dry_run,
+    )
+
+
+@app.tool(
+    description="Standardize an existing text against a previously collected journal corpus: build vocabulary reports, audit out-of-corpus prose, and optionally write a replacement-map-based standardized copy.",
+    structured_output=True,
+    annotations=MUTATING_TOOL,
+)
+def standardize_journal_text(
+    corpus_dir: str,
+    input_path: str,
+    output_dir: str | None = None,
+    allowed_terms: list[str] | None = None,
+    replacement_map: str | None = None,
+    apply: bool = False,
+    latex_mode: bool = True,
+    drop_title: bool = True,
+    dry_run: bool = False,
+) -> JournalTextStandardizationResponse:
+    return get_service().standardize_journal_text(
+        corpus_dir=corpus_dir,
+        input_path=input_path,
+        output_dir=output_dir,
+        allowed_terms=allowed_terms,
+        replacement_map=replacement_map,
+        apply=apply,
+        latex_mode=latex_mode,
+        drop_title=drop_title,
         dry_run=dry_run,
     )
 
@@ -606,6 +636,17 @@ def _invoke_local_tool(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
             refresh=bool(args.get("refresh", False)),
             skip_pdfs=bool(args.get("skip_pdfs", False)),
             pdf_report=bool(args.get("pdf_report", False)),
+            dry_run=bool(args.get("dry_run", False)),
+        ),
+        "standardize_journal_text": lambda: service.standardize_journal_text(
+            corpus_dir=args["corpus_dir"],
+            input_path=args["input_path"],
+            output_dir=args.get("output_dir"),
+            allowed_terms=list(args.get("allowed_terms") or []),
+            replacement_map=args.get("replacement_map"),
+            apply=bool(args.get("apply", False)),
+            latex_mode=bool(args.get("latex_mode", True)),
+            drop_title=bool(args.get("drop_title", True)),
             dry_run=bool(args.get("dry_run", False)),
         ),
         "render_library_manager": lambda: service.render_library_manager(

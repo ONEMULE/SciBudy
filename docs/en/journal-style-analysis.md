@@ -70,7 +70,8 @@ The target directory contains:
 2. Use a topic query close to your manuscript instead of the whole journal.
 3. Inspect `corpus_manifest.csv` for parser failures and irrelevant articles.
 4. Use the Markdown report as style guidance, not as source text.
-5. Compare findings against the journal's official author instructions before changing a manuscript.
+5. Use `journal-standardize` when you want a vocabulary audit for an existing text against this corpus.
+6. Compare findings against the journal's official author instructions before changing a manuscript.
 
 ## Built-in presets
 

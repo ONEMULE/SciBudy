@@ -18,7 +18,7 @@ from research_mcp.catalog import CatalogStore
 from research_mcp.client import ResearchHttpClient
 from research_mcp.errors import ProviderRequestError, ResearchMCPError
 from research_mcp.install_state import load_install_state
-from research_mcp.journal_style import JournalStyleAnalyzer
+from research_mcp.journal_style import JournalStyleAnalyzer, JournalTextStandardizer
 from research_mcp.library import LibraryManager, response_to_results
 from research_mcp.models import (
     AnalysisSettingsResponse,
@@ -33,6 +33,7 @@ from research_mcp.models import (
     InstallReadinessResponse,
     IngestResponse,
     JournalStyleAnalysisResponse,
+    JournalTextStandardizationResponse,
     LibrariesResponse,
     LibraryDetailResponse,
     LibraryMutationResponse,
@@ -82,6 +83,7 @@ class ResearchService:
         self.library = LibraryManager(self.settings, oa_resolver=self.oa_resolver)
         self.analysis = AnalysisEngine(self.settings, self.settings.cache_db_path)
         self.journal_style = JournalStyleAnalyzer(self.settings)
+        self.journal_standardizer = JournalTextStandardizer()
 
     def search_literature(self, query: str, mode: str = "general", limit: int = 10, sort: str = "relevance") -> SearchResponse:
         mode = mode.strip().lower()
@@ -403,6 +405,31 @@ class ResearchService:
             dry_run=dry_run,
         )
 
+    def standardize_journal_text(
+        self,
+        *,
+        corpus_dir: str,
+        input_path: str,
+        output_dir: str | None = None,
+        allowed_terms: list[str] | None = None,
+        replacement_map: str | None = None,
+        apply: bool = False,
+        latex_mode: bool = True,
+        drop_title: bool = True,
+        dry_run: bool = False,
+    ) -> JournalTextStandardizationResponse:
+        return self.journal_standardizer.standardize(
+            corpus_dir=corpus_dir,
+            input_path=input_path,
+            output_dir=output_dir,
+            allowed_terms=allowed_terms,
+            replacement_map=replacement_map,
+            apply=apply,
+            latex_mode=latex_mode,
+            drop_title=drop_title,
+            dry_run=dry_run,
+        )
+
     def import_library(self, path: str, name: str | None = None) -> LibraryMutationResponse:
         manifest_path = Path(path).expanduser().resolve()
         if manifest_path.is_dir():
@@ -691,6 +718,7 @@ class ResearchService:
                 "organize_library",
                 "collect_library",
                 "analyze_journal_style",
+                "standardize_journal_text",
                 "import_library",
                 "list_libraries",
                 "read_library",

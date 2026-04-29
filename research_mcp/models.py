@@ -157,6 +157,25 @@ class JournalStyleAnalysisResponse(BaseModel):
     next_actions: list[str] = Field(default_factory=list)
 
 
+class JournalTextStandardizationResponse(BaseModel):
+    status: Literal["ok", "partial", "error"]
+    generated_at: str
+    corpus_dir: str
+    input_path: str
+    output_dir: str
+    dry_run: bool = False
+    applied: bool = False
+    corpus_document_count: int = 0
+    vocabulary_size: int = 0
+    oov_unique_count: int = 0
+    oov_total_count: int = 0
+    allowed_term_count: int = 0
+    replacement_count: int = 0
+    paths: dict[str, str] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    next_actions: list[str] = Field(default_factory=list)
+
+
 class LibrarySummary(BaseModel):
     id: str
     name: str

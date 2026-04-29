@@ -17,7 +17,7 @@ The primary commands are `scibudy` and `scibudy-mcp`. Compatibility aliases `res
 | Analyze full text | `ingest-library`, `ingest-item`, `summarize-library`, `summarize-item`, `compare-items`, `analyze-topic`, `search-evidence` |
 | Synthesize | `workflow`, `synthesize-library`, `profiles`, `analysis-reports`, `analysis-report-show` |
 | Context and UI | `bundle-create`, `bundle-show`, `ui` |
-| Journal style | `journal-analyze` |
+| Journal style | `journal-analyze`, `journal-standardize` |
 | Local models | `install-local-models`, `warm-local-models`, `uninstall-local-models`, `analysis-settings`, `analysis-update` |
 
 ## Common CLI examples
@@ -32,6 +32,7 @@ scibudy ingest-library <library_id>
 scibudy search-evidence <library_id> "coverage diagnostics"
 scibudy synthesize-library <library_id> "simulation-based calibration" --profile auto
 scibudy journal-analyze --journal nature-communications --query "atmospheric chemistry Bayesian inference" --target-dir ./nc-style
+scibudy journal-standardize --corpus-dir ./nc-style --input ./manuscript.tex
 scibudy ui --open
 ```
 
@@ -47,7 +48,7 @@ The `research` MCP server exposes these main tool families:
 | Ingestion and evidence | `ingest_library`, `ingest_library_item`, `search_library_evidence` | You need to search inside parsed full text. |
 | Summaries and synthesis | `summarize_library`, `summarize_library_item`, `compare_library_items`, `analyze_library_topic`, `build_research_synthesis`, `list_domain_profiles` | You need structured notes or cross-paper synthesis. |
 | Reports and bundles | `list_analysis_reports`, `read_analysis_report`, `read_synthesis_report`, `generate_context_bundle`, `read_context_bundle` | You need reusable context for a conversation or manuscript task. |
-| Journal style | `analyze_journal_style` | You need corpus-based writing-style diagnostics for a target journal. |
+| Journal style | `analyze_journal_style`, `standardize_journal_text` | You need corpus-based writing-style diagnostics or vocabulary-standardization audits for a target journal. |
 | Runtime diagnostics | `health_check`, `security_check`, `get_analysis_settings`, `update_analysis_settings` | You need readiness, safety, or backend settings. |
 | UI | `render_library_manager` | You want the browser or ChatGPT Apps library manager. |
 
@@ -62,6 +63,7 @@ The `research` MCP server exposes these main tool families:
 | `scibudy search-evidence` | `search_library_evidence` |
 | `scibudy synthesize-library` | `build_research_synthesis` |
 | `scibudy journal-analyze` | `analyze_journal_style` |
+| `scibudy journal-standardize` | `standardize_journal_text` |
 | `scibudy doctor` | `health_check` |
 | `scibudy security-audit` | `security_check` |
 

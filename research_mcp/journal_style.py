@@ -11,6 +11,7 @@ import time
 import urllib.parse
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
+import difflib
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +19,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from research_mcp.journal_profiles import JournalProfile, get_journal_profile
-from research_mcp.models import JournalStyleAnalysisResponse
+from research_mcp.models import JournalStyleAnalysisResponse, JournalTextStandardizationResponse
 from research_mcp.paths import APP_HOME
 from research_mcp.settings import Settings
 from research_mcp.utils import now_utc_iso
@@ -52,6 +53,54 @@ HEDGE_WORDS = (
     "consistent",
     "uncertain",
 )
+
+STANDARDIZER_ALLOWED_TERMS = {
+    "abc",
+    "abc-weighted",
+    "bg",
+    "codex",
+    "dc3",
+    "dsmacc",
+    "fdr",
+    "gfs",
+    "hysplit",
+    "init",
+    "kpp",
+    "mcp",
+    "mww",
+    "npe",
+    "noy",
+    "nox",
+    "pvu",
+    "sbi",
+    "stage-i",
+    "stage-ii",
+    "tcld",
+}
+
+STANDARDIZER_LATEX_TOKENS = {
+    "amsmath",
+    "amssymb",
+    "ascii",
+    "booktabs",
+    "caption",
+    "centering",
+    "graphicx",
+    "href",
+    "htbp",
+    "hyperref",
+    "includegraphics",
+    "itemize",
+    "label",
+    "linewidth",
+    "ref",
+    "tabular",
+    "textbf",
+    "textit",
+    "tikz",
+    "url",
+    "xcolor",
+}
 
 STOP_SECTION_TITLES = {
     "References",
@@ -647,6 +696,153 @@ class JournalStyleAnalyzer:
         return pdf_path, None
 
 
+class JournalTextStandardizer:
+    def standardize(
+        self,
+        *,
+        corpus_dir: str,
+        input_path: str,
+        output_dir: str | None = None,
+        allowed_terms: list[str] | None = None,
+        replacement_map: str | None = None,
+        apply: bool = False,
+        latex_mode: bool = True,
+        drop_title: bool = True,
+        dry_run: bool = False,
+    ) -> JournalTextStandardizationResponse:
+        corpus_root = Path(corpus_dir).expanduser().resolve()
+        source_path = Path(input_path).expanduser().resolve()
+        if not corpus_root.exists():
+            raise FileNotFoundError(f"corpus_dir does not exist: {corpus_root}")
+        if not source_path.exists():
+            raise FileNotFoundError(f"input_path does not exist: {source_path}")
+        text_dir = corpus_root / "text"
+        corpus_files = sorted(text_dir.glob("*.txt"))
+        if not corpus_files:
+            raise ValueError(f"no corpus text files found under {text_dir}")
+
+        target_dir = Path(output_dir).expanduser().resolve() if output_dir else corpus_root / "standardization" / source_path.stem
+        paths = _standardization_paths(target_dir, source_path)
+        corpus_tokens: list[str] = []
+        document_counts: defaultdict[str, int] = defaultdict(int)
+        for path in corpus_files:
+            doc_tokens = _standardizer_tokens(path.read_text(encoding="utf-8", errors="replace"))
+            corpus_tokens.extend(doc_tokens)
+            for word in set(doc_tokens):
+                document_counts[word] += 1
+        vocabulary = Counter(corpus_tokens)
+        allowed = set(STANDARDIZER_ALLOWED_TERMS) | set(STANDARDIZER_LATEX_TOKENS)
+        allowed.update(_standardizer_tokens(" ".join(allowed_terms or [])))
+        allowed_path = corpus_root / "analysis" / "nc_word_corpus" / "allowed_project_terms.txt"
+        if allowed_path.exists():
+            allowed.update(_standardizer_tokens(allowed_path.read_text(encoding="utf-8", errors="replace")))
+
+        source_text = source_path.read_text(encoding="utf-8", errors="replace")
+        audit_text = _strip_for_standardization(source_text, latex_mode=latex_mode, drop_title=drop_title)
+        audit_tokens = _standardizer_tokens(audit_text)
+        oov_counter = Counter(
+            word
+            for word in audit_tokens
+            if len(word) > 1 and not _standardizer_in_vocab(word, vocabulary, allowed)
+        )
+        context_by_word = _first_context_by_word(source_text, oov_counter)
+        replacements = _read_replacement_map(Path(replacement_map).expanduser().resolve()) if replacement_map else {}
+        applied_path = ""
+        warnings: list[str] = []
+        if apply and not replacement_map:
+            warnings.append("No replacement_map was provided; no standardized text was written.")
+        elif apply:
+            standardized = _apply_replacements(source_text, replacements)
+            applied_path = str(paths["standardized_text"])
+        elif replacement_map:
+            warnings.append("replacement_map was read but --apply was not set; no standardized text was written.")
+
+        if not dry_run:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            _write_csv(
+                paths["vocabulary"],
+                [
+                    {"word": word, "count": count, "document_count": document_counts[word]}
+                    for word, count in vocabulary.most_common()
+                ],
+            )
+            _write_csv(
+                paths["bigrams"],
+                [
+                    {"word_1": a, "word_2": b, "count": count}
+                    for (a, b), count in _ngrams(corpus_tokens, 2).most_common(5000)
+                ],
+            )
+            _write_csv(
+                paths["trigrams"],
+                [
+                    {"word_1": a, "word_2": b, "word_3": c, "count": count}
+                    for (a, b, c), count in _ngrams(corpus_tokens, 3).most_common(5000)
+                ],
+            )
+            _write_csv(
+                paths["oov_report"],
+                [
+                    {
+                        "word": word,
+                        "count": count,
+                        "suggested_replacement": replacements.get(word) or _suggest_replacement(word, vocabulary),
+                        "context": context_by_word.get(word, ""),
+                    }
+                    for word, count in oov_counter.most_common()
+                ],
+            )
+            _write_csv(
+                paths["replacement_suggestions"],
+                [
+                    {
+                        "word": word,
+                        "suggested_replacement": replacements.get(word) or _suggest_replacement(word, vocabulary),
+                        "status": "mapped" if word in replacements else "review",
+                    }
+                    for word in oov_counter
+                ],
+            )
+            paths["allowed_terms"].write_text("\n".join(sorted(allowed)) + "\n", encoding="utf-8")
+            if apply and replacement_map:
+                paths["standardized_text"].write_text(standardized, encoding="utf-8")
+            summary = {
+                "generated_at": now_utc_iso(),
+                "corpus_dir": str(corpus_root),
+                "input_path": str(source_path),
+                "corpus_document_count": len(corpus_files),
+                "vocabulary_size": len(vocabulary),
+                "oov_unique_count": len(oov_counter),
+                "oov_total_count": sum(oov_counter.values()),
+                "allowed_term_count": len(allowed),
+                "replacement_count": len(replacements),
+                "applied": bool(apply and replacement_map),
+            }
+            paths["summary"].write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
+            paths["readme"].write_text(_standardization_readme(), encoding="utf-8")
+
+        path_payload = {key: str(value) for key, value in paths.items() if key != "standardized_text" or applied_path}
+        status = "ok" if not oov_counter else "partial"
+        return JournalTextStandardizationResponse(
+            status=status,
+            generated_at=now_utc_iso(),
+            corpus_dir=str(corpus_root),
+            input_path=str(source_path),
+            output_dir=str(target_dir),
+            dry_run=dry_run,
+            applied=bool(apply and replacement_map),
+            corpus_document_count=len(corpus_files),
+            vocabulary_size=len(vocabulary),
+            oov_unique_count=len(oov_counter),
+            oov_total_count=sum(oov_counter.values()),
+            allowed_term_count=len(allowed),
+            replacement_count=len(replacements),
+            paths=path_payload,
+            warnings=warnings,
+            next_actions=_standardization_next_actions(oov_counter, apply=apply, replacement_map=bool(replacement_map)),
+        )
+
+
 def _default_target_dir(profile: JournalProfile, from_year: int, to_year: int) -> Path:
     return APP_HOME / "journal_style" / f"{profile.key}_{from_year}_{to_year}"
 
@@ -663,6 +859,147 @@ def _paths(root: Path) -> dict[str, Path]:
 def _ensure_dirs(root: Path) -> None:
     for name in ["data", "analysis", "html", "text", "pdfs", "report"]:
         (root / name).mkdir(parents=True, exist_ok=True)
+
+
+def _standardization_paths(root: Path, source_path: Path) -> dict[str, Path]:
+    return {
+        "vocabulary": root / "journal_vocabulary.csv",
+        "bigrams": root / "journal_bigrams.csv",
+        "trigrams": root / "journal_trigrams.csv",
+        "allowed_terms": root / "allowed_terms.txt",
+        "oov_report": root / "oov_report.csv",
+        "replacement_suggestions": root / "replacement_suggestions.csv",
+        "summary": root / "standardization_summary.json",
+        "readme": root / "README.md",
+        "standardized_text": root / f"standardized{source_path.suffix or '.txt'}",
+    }
+
+
+def _standardizer_tokens(text: str) -> list[str]:
+    text = text.replace("–", "-").replace("—", "-").replace("--", "-")
+    text = re.sub(r"(?<=[A-Za-z])-(?=[A-Za-z])", " ", text)
+    return [word.lower().strip("'") for word in re.findall(r"[A-Za-z][A-Za-z']*", text)]
+
+
+def _strip_for_standardization(text: str, *, latex_mode: bool, drop_title: bool) -> str:
+    if not latex_mode:
+        return text
+    if drop_title:
+        text = re.sub(r"\\title\[[^\]]*\]\{.*?\}", " ", text, flags=re.S)
+        text = re.sub(r"\\title\{.*?\}", " ", text, flags=re.S)
+    text = re.split(r"\\begin\{thebibliography\}|\\bibliography", text)[0]
+    text = re.sub(r"\\begin\{tikzpicture\}.*?\\end\{tikzpicture\}", " ", text, flags=re.S)
+    text = re.sub(r"\\begin\{tabular\*?\}.*?\\end\{tabular\*?\}", " ", text, flags=re.S)
+    text = re.sub(r"\\includegraphics(?:\[[^\]]*\])?\{[^}]*\}", " ", text)
+    text = re.sub(r"\\citep\{[^}]*\}|\\ref\{[^}]*\}|\\label\{[^}]*\}", " ", text)
+    text = re.sub(r"\\url\{[^}]*\}", " ", text)
+    text = re.sub(r"\\[a-zA-Z]+\*?(?:\[[^\]]*\])?", " ", text)
+    return re.sub(r"[{}$\\_^&%#~]", " ", text)
+
+
+def _ngrams(words: list[str], n: int) -> Counter[tuple[str, ...]]:
+    return Counter(tuple(words[index : index + n]) for index in range(max(len(words) - n + 1, 0)))
+
+
+def _standardizer_in_vocab(word: str, vocabulary: Counter[str], allowed: set[str]) -> bool:
+    if word in allowed or word in vocabulary:
+        return True
+    variants: list[str] = []
+    if word.endswith("s"):
+        variants.append(word[:-1])
+    if word.endswith("es"):
+        variants.append(word[:-2])
+    if word.endswith("ed"):
+        variants.extend([word[:-2], word[:-1]])
+    if word.endswith("ing"):
+        variants.extend([word[:-3], word[:-3] + "e"])
+    if word.endswith("ly"):
+        variants.append(word[:-2])
+    return any(value in allowed or value in vocabulary for value in variants if value)
+
+
+def _first_context_by_word(text: str, oov_counter: Counter[str]) -> dict[str, str]:
+    remaining = set(oov_counter)
+    contexts: dict[str, str] = {}
+    for raw_line in text.splitlines():
+        if not remaining:
+            break
+        line = re.sub(r"\s+", " ", raw_line).strip()
+        if not line:
+            continue
+        line_tokens = set(_standardizer_tokens(line))
+        for word in sorted(remaining & line_tokens):
+            contexts[word] = line[:240]
+        remaining.difference_update(line_tokens)
+    return contexts
+
+
+def _read_replacement_map(path: Path) -> dict[str, str]:
+    if not path.exists():
+        raise FileNotFoundError(f"replacement_map does not exist: {path}")
+    rows = _read_csv(path)
+    replacements: dict[str, str] = {}
+    for row in rows:
+        source = (row.get("word") or row.get("source") or row.get("from") or "").strip().lower()
+        target = (row.get("replacement") or row.get("suggested_replacement") or row.get("target") or row.get("to") or "").strip()
+        if source and target:
+            replacements[source] = target
+    return replacements
+
+
+def _suggest_replacement(word: str, vocabulary: Counter[str]) -> str:
+    if not vocabulary:
+        return ""
+    candidates = [candidate for candidate, count in vocabulary.most_common(5000) if count >= 2 and len(candidate) > 2]
+    matches = difflib.get_close_matches(word, candidates, n=1, cutoff=0.78)
+    return matches[0] if matches else ""
+
+
+def _apply_replacements(text: str, replacements: dict[str, str]) -> str:
+    updated = text
+    for source, target in sorted(replacements.items(), key=lambda item: len(item[0]), reverse=True):
+        updated = re.sub(rf"\b{re.escape(source)}\b", lambda match: _match_case(match.group(0), target), updated, flags=re.IGNORECASE)
+    return updated
+
+
+def _match_case(original: str, replacement: str) -> str:
+    if original.isupper():
+        return replacement.upper()
+    if original[:1].isupper():
+        return replacement[:1].upper() + replacement[1:]
+    return replacement
+
+
+def _standardization_next_actions(oov_counter: Counter[str], *, apply: bool, replacement_map: bool) -> list[str]:
+    if not oov_counter:
+        return ["No ordinary-prose OOV terms remain after journal vocabulary and allowed-term checks."]
+    if not replacement_map:
+        return ["Review oov_report.csv and create a replacement_map CSV with columns word,replacement before using --apply."]
+    if not apply:
+        return ["Run again with --apply to write standardized text using the replacement map."]
+    return ["Review standardized text manually before using it in a manuscript."]
+
+
+def _standardization_readme() -> str:
+    return "\n".join(
+        [
+            "# Journal text standardization audit",
+            "",
+            "This directory was generated by `scibudy journal-standardize`.",
+            "The audit compares ordinary prose in an input text against words observed in the selected journal corpus.",
+            "",
+            "Files:",
+            "- `journal_vocabulary.csv`: corpus word counts and document counts.",
+            "- `journal_bigrams.csv` and `journal_trigrams.csv`: frequent corpus word combinations.",
+            "- `allowed_terms.txt`: technical and project-specific terms excluded from ordinary-prose OOV checks.",
+            "- `oov_report.csv`: input words outside the journal corpus after exemptions.",
+            "- `replacement_suggestions.csv`: candidate replacements for manual review.",
+            "- `standardization_summary.json`: run-level summary.",
+            "- `standardized.*`: generated only when `--apply --replacement-map` is used.",
+            "",
+            "The tool does not guarantee journal acceptance and should not be used to copy source article text.",
+        ]
+    ) + "\n"
 
 
 def _validate_year_range(from_year: int, to_year: int) -> None:

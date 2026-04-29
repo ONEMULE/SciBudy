@@ -9,10 +9,14 @@
 ## 常用命令
 
 ```bash
-make test
-make build-ui
-make package-check
-make release-check
+make verify-local
+```
+
+普通改动运行 `make verify-local`。如果改动涉及 Pages、安装器、包元数据或
+release manifest，再运行：
+
+```bash
+make verify-full
 ```
 
 ## 开发原则
