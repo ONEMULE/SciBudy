@@ -27,6 +27,14 @@ scibudy analysis-reports --library-id <library_id>
 scibudy analysis-report-show <report_id>
 ```
 
+## 期刊文风分析
+
+```bash
+scibudy journal-analyze --journal nature-communications --query "atmospheric chemistry Bayesian inference" --target-dir ./nc-style
+```
+
+当目标是学习目标期刊的写作模式，而不是围绕某个科学问题综合证据时，使用这个命令。
+
 ## 上下文包
 
 ```bash
