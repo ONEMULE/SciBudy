@@ -188,6 +188,42 @@ def format_organize_library_response(payload: dict[str, Any], *, fmt: str = "tab
     )
 
 
+def format_journal_style_analysis_response(payload: dict[str, Any], *, fmt: str = "table") -> str:
+    if fmt == "json":
+        return json.dumps(payload, indent=2, ensure_ascii=False)
+    lines = [
+        f"status: {payload.get('status', '')}",
+        f"journal: {payload.get('journal', '')}",
+        f"journal_key: {payload.get('journal_key', '')}",
+        f"years: {payload.get('from_year', '')}-{payload.get('to_year', '')}",
+        f"target_size: {payload.get('target_size', '')}",
+        f"article_count: {payload.get('article_count', '')}",
+        f"dry_run: {payload.get('dry_run', False)}",
+        f"target_dir: {payload.get('target_dir', '')}",
+    ]
+    metrics = payload.get("metrics") or {}
+    if metrics:
+        lines.extend(["", "metrics:"])
+        for key in ["full_body_count", "pdf_downloaded_count", "median_body_words", "median_abstract_words", "median_references"]:
+            if key in metrics:
+                lines.append(f"- {key}: {metrics[key]}")
+    paths = payload.get("paths") or {}
+    if paths:
+        lines.extend(["", "paths:"])
+        for key in ["manifest", "selection_scores", "citation_matrix", "phrase_bank", "report_markdown", "report_pdf"]:
+            if paths.get(key):
+                lines.append(f"- {key}: {paths[key]}")
+    warnings = payload.get("warnings") or []
+    if warnings:
+        lines.extend(["", "warnings:"])
+        lines.extend(f"- {warning}" for warning in warnings[:12])
+    next_actions = payload.get("next_actions") or []
+    if next_actions:
+        lines.extend(["", "next_actions:"])
+        lines.extend(f"- {action}" for action in next_actions)
+    return "\n".join(lines)
+
+
 def format_provider_statuses(payload: dict[str, Any], *, fmt: str = "table") -> str:
     if fmt == "json":
         return json.dumps(payload, indent=2, ensure_ascii=False)
