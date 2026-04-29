@@ -1,6 +1,6 @@
 # Scibudy Documentation
 
-Scibudy is a Codex-native research expansion assistant for literature search, library management, full-text analysis, and local semantic retrieval.
+Scibudy is a Codex-native research assistant for scholarly search, reusable paper libraries, full-text analysis, local evidence retrieval, and journal-style diagnostics.
 
 ## Core surfaces
 
@@ -8,6 +8,17 @@ Scibudy is a Codex-native research expansion assistant for literature search, li
 - MCP server: `scibudy-mcp`
 - Installer: `scibudy-install`
 - UI: `scibudy ui --open`
+
+## Five-minute path
+
+```bash
+npx scibudy-install --profile base
+scibudy doctor --json
+scibudy install-codex
+codex mcp get research
+scibudy search "simulation-based calibration"
+scibudy ui --open
+```
 
 ## Documentation map
 
@@ -20,9 +31,16 @@ Scibudy is a Codex-native research expansion assistant for literature search, li
 - [Configuration](configuration.md)
 - [GPU local models](gpu-local.md)
 - [Library workflow](library-workflow.md)
+- [Journal style analysis](journal-style-analysis.md)
 - [Troubleshooting](troubleshooting.md)
 - [Development](development.md)
 - [Releasing](releasing.md)
+
+## Release links
+
+- GitHub Releases: <https://github.com/ONEMULE/scibudy/releases>
+- npm installer: <https://www.npmjs.com/package/scibudy-installer>
+- PyPI package: <https://pypi.org/project/scibudy/>
 
 ## Architecture summary
 
