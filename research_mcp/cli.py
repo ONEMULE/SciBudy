@@ -17,6 +17,7 @@ from research_mcp.formatters import (
     format_analysis_settings_response,
     format_analysis_summary_response,
     format_ingest_response,
+    format_journal_style_analysis_response,
     format_context_bundle_response,
     format_diagnostic_response,
     format_download_batch_response,
@@ -114,6 +115,8 @@ def dispatch(args: argparse.Namespace) -> None:
         run_organize(args)
     elif args.command == "collect":
         run_collect(args)
+    elif args.command == "journal-analyze":
+        run_journal_analyze(args)
     elif args.command == "providers":
         run_providers(args)
     elif args.command == "runs":
@@ -281,6 +284,19 @@ def build_parser() -> argparse.ArgumentParser:
     collect_parser.add_argument("--skip-pdfs", action="store_true")
     collect_parser.add_argument("--name")
     collect_parser.add_argument("--format", choices=["table", "json"], default="table")
+
+    journal_parser = subparsers.add_parser("journal-analyze", help="Build and analyze a journal style corpus.")
+    journal_parser.add_argument("--journal", default="nature-communications")
+    journal_parser.add_argument("--query")
+    journal_parser.add_argument("--from-year", type=int, default=2020)
+    journal_parser.add_argument("--to-year", type=int)
+    journal_parser.add_argument("--target-size", type=int, default=100)
+    journal_parser.add_argument("--target-dir")
+    journal_parser.add_argument("--refresh", action="store_true")
+    journal_parser.add_argument("--skip-pdfs", action="store_true")
+    journal_parser.add_argument("--pdf-report", action="store_true")
+    journal_parser.add_argument("--dry-run", action="store_true")
+    journal_parser.add_argument("--format", choices=["table", "json"], default="table")
 
     providers_parser = subparsers.add_parser("providers", help="Show provider readiness and missing credentials.")
     providers_parser.add_argument("--format", choices=["table", "json"], default="table")
@@ -644,6 +660,22 @@ def run_collect(args: argparse.Namespace) -> None:
         name=args.name,
     )
     print(format_organize_library_response(response.model_dump(mode="json"), fmt=args.format))
+
+
+def run_journal_analyze(args: argparse.Namespace) -> None:
+    response = ResearchService().analyze_journal_style(
+        journal=args.journal,
+        query=args.query,
+        from_year=args.from_year,
+        to_year=args.to_year,
+        target_size=args.target_size,
+        target_dir=args.target_dir,
+        refresh=args.refresh,
+        skip_pdfs=args.skip_pdfs,
+        pdf_report=args.pdf_report,
+        dry_run=args.dry_run,
+    )
+    print(format_journal_style_analysis_response(response.model_dump(mode="json"), fmt=args.format))
 
 
 def run_providers(args: argparse.Namespace) -> None:
