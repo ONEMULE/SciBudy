@@ -14,7 +14,7 @@ build-docs:
 	$(VENV_PYTHON) -m mkdocs build --strict
 
 site-health:
-	$(VENV_PYTHON) scripts/check_site.py --base-url https://onemule.github.io/scibudy/
+	$(VENV_PYTHON) scripts/check_site.py --base-url https://onemule.github.io/SciBudy/
 
 build-python:
 	$(VENV_PYTHON) -m build

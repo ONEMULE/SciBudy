@@ -139,6 +139,24 @@ class OrganizeLibraryResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class JournalStyleAnalysisResponse(BaseModel):
+    status: Literal["ok", "partial", "error"]
+    generated_at: str
+    journal: str
+    journal_key: str
+    query: str | None = None
+    from_year: int
+    to_year: int
+    target_size: int
+    article_count: int = 0
+    target_dir: str
+    dry_run: bool = False
+    paths: dict[str, str] = Field(default_factory=dict)
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    next_actions: list[str] = Field(default_factory=list)
+
+
 class LibrarySummary(BaseModel):
     id: str
     name: str

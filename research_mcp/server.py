@@ -20,6 +20,7 @@ from research_mcp.models import (
     DownloadBatchResponse,
     HealthCheckResponse,
     IngestResponse,
+    JournalStyleAnalysisResponse,
     LibrariesResponse,
     LibraryDetailResponse,
     LibraryMutationResponse,
@@ -198,6 +199,37 @@ def collect_library(
         target_dir=target_dir,
         download_pdfs=download_pdfs,
         name=name,
+    )
+
+
+@app.tool(
+    description="Build and analyze a journal style corpus: collect journal articles, parse sections/captions/references, and write style-analysis reports.",
+    structured_output=True,
+    annotations=MUTATING_TOOL,
+)
+def analyze_journal_style(
+    journal: str = "nature-communications",
+    query: str | None = None,
+    from_year: int = 2020,
+    to_year: int | None = None,
+    target_size: int = 100,
+    target_dir: str | None = None,
+    refresh: bool = False,
+    skip_pdfs: bool = False,
+    pdf_report: bool = False,
+    dry_run: bool = False,
+) -> JournalStyleAnalysisResponse:
+    return get_service().analyze_journal_style(
+        journal=journal,
+        query=query,
+        from_year=from_year,
+        to_year=to_year,
+        target_size=target_size,
+        target_dir=target_dir,
+        refresh=refresh,
+        skip_pdfs=skip_pdfs,
+        pdf_report=pdf_report,
+        dry_run=dry_run,
     )
 
 
@@ -564,6 +596,18 @@ def _invoke_local_tool(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
         ),
         "read_context_bundle": lambda: service.read_context_bundle(args["bundle_id"]),
         "import_library": lambda: service.import_library(args["path"], name=args.get("name")),
+        "analyze_journal_style": lambda: service.analyze_journal_style(
+            journal=args.get("journal", "nature-communications"),
+            query=args.get("query"),
+            from_year=int(args.get("from_year", 2020)),
+            to_year=int(args["to_year"]) if args.get("to_year") is not None else None,
+            target_size=int(args.get("target_size", 100)),
+            target_dir=args.get("target_dir"),
+            refresh=bool(args.get("refresh", False)),
+            skip_pdfs=bool(args.get("skip_pdfs", False)),
+            pdf_report=bool(args.get("pdf_report", False)),
+            dry_run=bool(args.get("dry_run", False)),
+        ),
         "render_library_manager": lambda: service.render_library_manager(
             library_id=args.get("library_id"),
             include_archived=bool(args.get("include_archived", False)),

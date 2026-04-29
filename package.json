@@ -1,14 +1,15 @@
 {
   "name": "scibudy-installer",
-  "version": "0.2.3",
-  "description": "Unified installer and bootstrap wrapper for Scibudy",
+  "version": "0.3.0",
+  "description": "Codex-native scientific research assistant for scholarly search, library management, full-text analysis, and local semantic retrieval",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ONEMULE/scibudy.git"
   },
-  "homepage": "https://github.com/ONEMULE/scibudy",
+  "homepage": "https://onemule.github.io/SciBudy/",
+  "documentation": "https://onemule.github.io/SciBudy/",
   "bugs": {
     "url": "https://github.com/ONEMULE/scibudy/issues"
   },

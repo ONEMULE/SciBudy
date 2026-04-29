@@ -1,5 +1,6 @@
 site_name: Scibudy
-site_description: Codex-native scientific research expansion assistant
+site_description: Codex-native scientific research assistant
+site_url: https://onemule.github.io/SciBudy/
 repo_url: https://github.com/ONEMULE/scibudy
 theme:
   name: material
@@ -16,6 +17,7 @@ nav:
       - Configuration: en/configuration.md
       - GPU Local: en/gpu-local.md
       - Library Workflow: en/library-workflow.md
+      - Journal Style Analysis: en/journal-style-analysis.md
       - Architecture: en/architecture.md
       - Support Matrix: en/support-matrix.md
       - Troubleshooting: en/troubleshooting.md
@@ -32,6 +34,7 @@ nav:
       - 配置说明: zh/configuration.md
       - 本地 GPU 模型: zh/gpu-local.md
       - 文献库工作流: zh/library-workflow.md
+      - 期刊文风分析: zh/journal-style-analysis.md
       - 架构说明: zh/architecture.md
       - 支持矩阵: zh/support-matrix.md
       - 故障排查: zh/troubleshooting.md

@@ -18,6 +18,7 @@ from research_mcp.catalog import CatalogStore
 from research_mcp.client import ResearchHttpClient
 from research_mcp.errors import ProviderRequestError, ResearchMCPError
 from research_mcp.install_state import load_install_state
+from research_mcp.journal_style import JournalStyleAnalyzer
 from research_mcp.library import LibraryManager, response_to_results
 from research_mcp.models import (
     AnalysisSettingsResponse,
@@ -31,6 +32,7 @@ from research_mcp.models import (
     HealthCheckResponse,
     InstallReadinessResponse,
     IngestResponse,
+    JournalStyleAnalysisResponse,
     LibrariesResponse,
     LibraryDetailResponse,
     LibraryMutationResponse,
@@ -79,6 +81,7 @@ class ResearchService:
         self.oa_resolver = oa_resolver or built_resolver
         self.library = LibraryManager(self.settings, oa_resolver=self.oa_resolver)
         self.analysis = AnalysisEngine(self.settings, self.settings.cache_db_path)
+        self.journal_style = JournalStyleAnalyzer(self.settings)
 
     def search_literature(self, query: str, mode: str = "general", limit: int = 10, sort: str = "relevance") -> SearchResponse:
         mode = mode.strip().lower()
@@ -373,6 +376,33 @@ class ResearchService:
         response.library_id = self._register_library(response, results, name=name)
         return response
 
+    def analyze_journal_style(
+        self,
+        *,
+        journal: str = "nature-communications",
+        query: str | None = None,
+        from_year: int = 2020,
+        to_year: int | None = None,
+        target_size: int = 100,
+        target_dir: str | None = None,
+        refresh: bool = False,
+        skip_pdfs: bool = False,
+        pdf_report: bool = False,
+        dry_run: bool = False,
+    ) -> JournalStyleAnalysisResponse:
+        return self.journal_style.analyze(
+            journal=journal,
+            query=query,
+            from_year=from_year,
+            to_year=to_year,
+            target_size=target_size,
+            target_dir=target_dir,
+            refresh=refresh,
+            skip_pdfs=skip_pdfs,
+            pdf_report=pdf_report,
+            dry_run=dry_run,
+        )
+
     def import_library(self, path: str, name: str | None = None) -> LibraryMutationResponse:
         manifest_path = Path(path).expanduser().resolve()
         if manifest_path.is_dir():
@@ -660,6 +690,7 @@ class ResearchService:
                 "download_pdfs",
                 "organize_library",
                 "collect_library",
+                "analyze_journal_style",
                 "import_library",
                 "list_libraries",
                 "read_library",

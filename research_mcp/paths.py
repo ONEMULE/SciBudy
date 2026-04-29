@@ -16,14 +16,10 @@ def _resolve_app_home() -> Path:
     if override:
         return Path(override).expanduser().resolve()
 
-    legacy_markers = [
-        PROJECT_ROOT / ".env",
-        PROJECT_ROOT / "state",
-        PROJECT_ROOT / "analysis",
-        PROJECT_ROOT / "library",
-        PROJECT_ROOT / ".venv",
-    ]
-    if any(path.exists() for path in legacy_markers):
+    legacy_files = [PROJECT_ROOT / ".env"]
+    legacy_dirs = [PROJECT_ROOT / "state", PROJECT_ROOT / "analysis", PROJECT_ROOT / "library"]
+    has_legacy_dir_data = any(path.exists() and any(path.iterdir()) for path in legacy_dirs)
+    if any(path.exists() for path in legacy_files) or has_legacy_dir_data:
         return PROJECT_ROOT
     return DEFAULT_APP_HOME
 
