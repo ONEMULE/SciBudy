@@ -1,26 +1,48 @@
 # Codex MCP Setup
 
-## Recommended path
+Scibudy exposes a local `stdio` MCP server named `research`. Once configured, Codex can call Scibudy tools for search, library creation, ingestion, evidence retrieval, synthesis, and journal-style analysis.
 
-Let Scibudy manage the MCP config for you:
+## Automatic setup
+
+Use the installer or bootstrap flow:
 
 ```bash
+npx scibudy-install --profile base
 scibudy install-codex
+codex mcp get research
 ```
 
-or during bootstrap:
+Or from a source checkout:
 
 ```bash
 scibudy bootstrap --profile base --install-codex
+codex mcp get research
 ```
 
-## What this does
-
-It updates the managed `research` MCP block in:
+`scibudy install-codex` updates the managed `research` MCP block in:
 
 ```text
 ~/.codex/config.toml
 ```
+
+It points Codex at `research-mcp` or `scibudy-mcp`, depending on the installed runtime.
+
+## Manual setup
+
+If you do not want Scibudy to edit Codex config automatically, bootstrap without Codex changes:
+
+```bash
+scibudy bootstrap --profile base --no-install-codex
+```
+
+Then add a `research` MCP server in Codex that uses:
+
+```text
+transport: stdio
+command: research-mcp
+```
+
+Use the absolute command path when Codex cannot resolve the command from its login environment.
 
 ## Verify
 
@@ -28,22 +50,42 @@ It updates the managed `research` MCP block in:
 codex mcp get research
 ```
 
-You should see:
+Expected signals:
 
-- transport `stdio`
-- command path to `research-mcp` or `scibudy-mcp`
-- enabled analysis and library tools
+- server name is `research`
+- transport is `stdio`
+- command points to `research-mcp` or `scibudy-mcp`
+- the server exposes search, open-access, library, analysis, synthesis, and UI tools
 
-## If you do not want automatic Codex changes
-
-Use:
+For runtime readiness:
 
 ```bash
-scibudy bootstrap --profile base --no-install-codex
+scibudy doctor --json
+scibudy security-audit
 ```
 
-Then add the MCP config later with:
+## Typical Codex prompts
+
+```text
+Search recent literature on posterior calibration in simulation-based inference using research_workflow. Use dry_run=true first.
+```
+
+```text
+Use collect_library to build a local library for "Bayesian atmospheric chemistry inverse modeling", then ingest_library and search_library_evidence for "uncertainty calibration".
+```
+
+```text
+Run analyze_journal_style for nature-communications with query "atmospheric chemistry Bayesian inference" and summarize the output files.
+```
+
+## Troubleshooting
+
+If Codex cannot see the MCP server:
 
 ```bash
 scibudy install-codex
+codex mcp get research
+scibudy doctor --json
 ```
+
+If the command path is missing in an SSH or GUI-launched Codex session, reinstall with Scibudy or edit the MCP block to use an absolute path to `research-mcp`.
